@@ -1,6 +1,6 @@
 // Export: Excel (.xlsx), PDF (A4 quer) und Bilder (PNG je Seite) – gleicher Aufbau wie in der Mac-App.
 import * as fmt from "./format.js";
-import { singleLine, totalKm, amount, tripRate, timeRange } from "./model.js";
+import { singleLine, totalKm, amount, tripRate, timeRange, VEHICLE_TYPES } from "./model.js";
 
 // --- Berichtsdaten ---------------------------------------------------------
 
@@ -34,7 +34,7 @@ export function buildReport(summary, month, settings) {
     });
   const sum = (k) => groups.reduce((s, g) => s + g[k], 0);
   const periodLabel = month ? `${fmt.MONTHS[month - 1]} ${summary.year}` : `Jahr ${summary.year}`;
-  const vehicleType = settings.vehicleType === "motorcycle" ? "Privates Motorrad / Motorroller" : "Privatfahrzeug";
+  const vehicleType = (VEHICLE_TYPES[settings.vehicleType] || VEHICLE_TYPES.custom).exportLabel;
   const vehicle = [vehicleType, settings.vehicleName, settings.licensePlate].filter(Boolean).join(" · ");
   const allRows = groups.flatMap((g) => g.rows);
   const mixedRates = new Set(allRows.map((r) => r.rate)).size > 1;

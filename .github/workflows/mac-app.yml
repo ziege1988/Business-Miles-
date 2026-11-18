@@ -1,6 +1,7 @@
 # Baut die Mac-App auf einem Mac von GitHub und stellt sie als ZIP bereit.
 # - Bei jedem Push: Build-Prüfung + ZIP als „Artifact“ (Actions → Lauf → unten „Artifacts“)
-# - Auf main: zusätzlich ein Release mit der ZIP-Datei (Repository-Seite → „Releases“)
+# - Auf dem Standard-Zweig: zusätzlich ein Release mit der ZIP-Datei (Repository-Seite → „Releases“)
+# - Commit-Nachricht mit „[screenshots]“ oder manueller Start: Bildschirmfotos mit Beispieldaten → docs/screenshots
 name: Mac-App bauen
 
 on:
@@ -54,8 +55,31 @@ jobs:
           name: Business-Miles-Mac
           path: Business-Miles-Mac.zip
 
-      - name: Release veröffentlichen (nur main)
-        if: github.ref == 'refs/heads/main'
+      - name: Bildschirmfotos mit Beispieldaten
+        if: contains(github.event.head_commit.message, '[screenshots]') || github.event_name == 'workflow_dispatch'
+        run: |
+          APP="build/Build/Products/Release/Business Miles.app"
+          mkdir -p shots
+          "$APP/Contents/MacOS/Business Miles" --screenshots "$PWD/shots" &
+          PID=$!
+          for i in $(seq 1 90); do kill -0 $PID 2>/dev/null || break; sleep 1; done
+          kill $PID 2>/dev/null || true
+          for f in shots/*.pdf; do [ -f "$f" ] && sips -s format png "$f" --out "${f%.pdf}.png" >/dev/null || true; done
+          ls -la shots
+
+      - name: Bildschirmfotos ins Repository
+        if: contains(github.event.head_commit.message, '[screenshots]') || github.event_name == 'workflow_dispatch'
+        run: |
+          mkdir -p docs/screenshots
+          cp shots/* docs/screenshots/ 2>/dev/null || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/screenshots
+          git diff --cached --quiet || git commit -m "Bildschirmfotos der Mac-App aktualisiert"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Release veröffentlichen (Standard-Zweig)
+        if: github.ref_name == github.event.repository.default_branch
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

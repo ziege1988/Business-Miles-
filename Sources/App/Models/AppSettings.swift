@@ -8,16 +8,16 @@ enum VehicleType: String, CaseIterable, Identifiable {
         switch self {
         case .car: "Pkw"
         case .motorcycle: "Motorrad / Motorroller"
-        case .custom: "Eigener Satz"
+        case .custom: "Sonstiges"
         }
     }
 
-    /// Pauschale Kilometersätze für betrieblich veranlasste Fahrten mit Privatfahrzeug.
-    var defaultRate: Double? {
+    /// Bezeichnung im Export
+    var exportLabel: String {
         switch self {
-        case .car: 0.30
-        case .motorcycle: 0.20
-        case .custom: nil
+        case .car: "Privat-Pkw"
+        case .motorcycle: "Privates Motorrad / Motorroller"
+        case .custom: "Privatfahrzeug"
         }
     }
 }

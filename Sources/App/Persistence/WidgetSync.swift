@@ -15,6 +15,18 @@ enum WidgetSync {
     }
 
     static func update(with trips: [Trip]) {
+        var snapshot = Self.snapshot(for: trips)
+
+        var compareOld = WidgetSnapshot.load()
+        compareOld.updatedAt = .distantPast
+        guard compareOld != snapshot else { return }
+
+        snapshot.updatedAt = .now
+        snapshot.save()
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    static func snapshot(for trips: [Trip]) -> WidgetSnapshot {
         let cal = Fmt.calendar
         var snapshot = WidgetSnapshot()
         for t in trips {
@@ -31,13 +43,6 @@ enum WidgetSync {
             snapshot.lastTripDate = last.date
             snapshot.lastTripKm = last.totalKm
         }
-
-        var compareOld = WidgetSnapshot.load()
-        compareOld.updatedAt = .distantPast
-        guard compareOld != snapshot else { return }
-
-        snapshot.updatedAt = .now
-        snapshot.save()
-        WidgetCenter.shared.reloadAllTimelines()
+        return snapshot
     }
 }

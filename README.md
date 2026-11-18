@@ -16,6 +16,14 @@ und einem steuertauglichen Export.
    iPhone-Web-App ──(Microsoft Graph)──┘
 ```
 
+## So sieht es aus
+
+| iPhone – Übersicht | iPhone – Neue Fahrt | Export (PDF) |
+|---|---|---|
+| <img src="docs/screenshots/handy-2-uebersicht.png" width="230"> | <img src="docs/screenshots/handy-5-neue-fahrt-km.png" width="230"> | <img src="docs/screenshots/pdf-seite-1.png" width="330"> |
+
+Mac-App und Widget: siehe [`docs/screenshots`](docs/screenshots) (werden automatisch auf einem Mac erzeugt).
+
 ---
 
 ## Funktionen
@@ -50,7 +58,7 @@ Details: [`docs/DATENFORMAT.md`](docs/DATENFORMAT.md).
 
 Kurzfassung:
 
-1. Repository öffentlich machen, *Settings → Pages → Source: GitHub Actions*, Pull Request mergen.
+1. Repository öffentlich machen, *Settings → Pages → Source: GitHub Actions*, Workflow „Web-App veröffentlichen“ starten.
 2. In [entra.microsoft.com](https://entra.microsoft.com) eine App-Registrierung „Business Miles“ anlegen
    (SPA, Umleitung `https://ziege1988.github.io/Business-Miles-/`, Berechtigung `Files.ReadWrite`)
    und Client-ID + Mandanten-ID in [`web/js/config.js`](web/js/config.js) eintragen.

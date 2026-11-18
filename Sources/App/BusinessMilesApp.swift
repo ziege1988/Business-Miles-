@@ -13,7 +13,9 @@ final class AppRouter: ObservableObject {
 
 @main
 struct BusinessMilesApp: App {
-    @StateObject private var store = TripStore()
+    @StateObject private var store = ScreenshotMode.isActive
+        ? TripStore(preview: ScreenshotMode.sampleData())
+        : TripStore()
     @StateObject private var router = AppRouter()
     @State private var showSplash = true
 
@@ -35,6 +37,9 @@ struct BusinessMilesApp: App {
             .task {
                 try? await Task.sleep(for: .seconds(1.6))
                 withAnimation(.easeOut(duration: 0.45)) { showSplash = false }
+            }
+            .task {
+                if ScreenshotMode.isActive { await ScreenshotMode.run(store: store, router: router) }
             }
             .frame(minWidth: 920, minHeight: 620)
         }

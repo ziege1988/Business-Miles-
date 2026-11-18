@@ -94,7 +94,7 @@ struct ReportData {
             address: settings.home.singleLine,
             taxNumber: settings.taxNumber,
             vehicle: settings.vehicleDescription,
-            vehicleType: settings.vehicleType == .motorcycle ? "Privates Motorrad / Motorroller" : "Privatfahrzeug",
+            vehicleType: settings.vehicleType.exportLabel,
             rate: rate
         )
         return ReportData(year: summary.year, month: month, header: header, groups: groups, createdAt: .now)

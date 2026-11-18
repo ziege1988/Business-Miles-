@@ -516,7 +516,7 @@ function openSettings() {
         <div class="field"><input class="s-plate" placeholder="Kennzeichen" autocapitalize="characters"></div>
         <div class="field"><span>Fahrzeugart</span><select class="s-type" style="text-align:right">${Object.entries(VEHICLE_TYPES).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join("")}</select></div>
         <div class="field"><span>Kilometersatz</span><input class="num s-rate" inputmode="decimal" style="margin-left:auto"><span class="unit">€/km</span></div>
-      </div><p class="hint">Der Kilometersatz ist frei einstellbar und gilt für neue Fahrten – bereits erfasste Fahrten behalten ihren Satz (in der jeweiligen Fahrt änderbar). Pauschal üblich: 0,30 € (Pkw) bzw. 0,20 € (Motorrad/Motorroller) je gefahrenem Kilometer. Im Zweifel mit der Steuerberatung abstimmen.</p></div>
+      </div><p class="hint">Dein Kilometersatz wird bei jeder neuen Fahrt verwendet – unabhängig von der Fahrzeugart. Bereits erfasste Fahrten behalten ihren Satz (in der jeweiligen Fahrt änderbar). Zum Vergleich: Die gesetzliche Pauschale beträgt 0,30 € (Pkw) bzw. 0,20 € (Motorrad).</p></div>
       <div class="group"><label>OneDrive</label><div class="fields">
         <div class="field"><span>Datei</span><span class="unit" style="margin-left:auto">Business-Miles › business-miles.json</span></div>
         <div class="field"><span>Konto</span><span class="unit" style="margin-left:auto">${graph.isConfigured() ? esc(account?.username || "nicht angemeldet") : "nicht eingerichtet"}</span></div>
@@ -538,16 +538,7 @@ function openSettings() {
   q(".s-plate").value = s.licensePlate;
   q(".s-type").value = s.vehicleType;
   q(".s-rate").value = fmtRate(s.ratePerKm);
-  // Fahrzeugart = Schnellwahl für den Satz; eigener Wert → „Eigener Satz“
-  q(".s-type").addEventListener("change", () => {
-    const preset = VEHICLE_TYPES[q(".s-type").value].rate;
-    if (preset !== null) q(".s-rate").value = fmtRate(preset);
-  });
-  q(".s-rate").addEventListener("input", () => {
-    const v = parseRate(q(".s-rate").value, null);
-    const preset = VEHICLE_TYPES[q(".s-type").value].rate;
-    if (v !== null && preset !== null && v !== preset) q(".s-type").value = "custom";
-  });
+  q(".s-rate").addEventListener("blur", () => { q(".s-rate").value = fmtRate(parseRate(q(".s-rate").value, s.ratePerKm)); });
 
   el.addEventListener("click", async (e) => {
     const x = e.target.closest("[data-x]")?.dataset.x;

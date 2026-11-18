@@ -30,6 +30,8 @@ final class TripStore: ObservableObject {
     private var writeDebounce: Task<Void, Never>?
     private var timer: Timer?
     private var resolvingDistances = false
+    /// Vorschau (Bildschirmfotos): feste Beispieldaten, kein Dateizugriff, kein Abgleich.
+    private var isPreview = false
 
     private static let folderKey = "oneDriveFolderPath"
 
@@ -48,6 +50,14 @@ final class TripStore: ObservableObject {
             Task { @MainActor in self?.sync() }
         }
         sync()
+    }
+
+    /// Nur für Bildschirmfotos mit Beispieldaten – liest und schreibt nichts.
+    init(preview: DataFile) {
+        isPreview = true
+        doc = preview
+        folderURL = URL(fileURLWithPath: "/Users/max/Library/CloudStorage/OneDrive-Mustermann/Business-Miles")
+        status = .synced(Date())
     }
 
     // MARK: Ändern
@@ -79,6 +89,7 @@ final class TripStore: ObservableObject {
     }
 
     private func didChange() {
+        guard !isPreview else { return }
         Self.saveCache(doc)
         writeDebounce?.cancel()
         writeDebounce = Task { [weak self] in
@@ -137,6 +148,7 @@ final class TripStore: ObservableObject {
     // MARK: Abgleich
 
     func sync() {
+        guard !isPreview else { return }
         guard let folder = folderURL else {
             status = .noFolder
             return

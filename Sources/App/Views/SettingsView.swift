@@ -29,13 +29,7 @@ struct SettingsView: View {
             Section {
                 TextField("Fahrzeug (z. B. VW Golf)", text: $draft.vehicleName)
                 TextField("Kennzeichen", text: $draft.licensePlate)
-                Picker("Fahrzeugart", selection: Binding(
-                    get: { draft.vehicleType },
-                    set: { newValue in
-                        draft.vehicleType = newValue
-                        if let rate = newValue.defaultRate { draft.ratePerKm = rate }
-                    }
-                )) {
+                Picker("Fahrzeugart", selection: $draft.vehicleType) {
                     ForEach(VehicleType.allCases) { type in
                         Text(type.label).tag(type)
                     }
@@ -45,11 +39,7 @@ struct SettingsView: View {
                     Spacer()
                     TextField("Satz", value: Binding(
                         get: { draft.ratePerKm },
-                        set: { newValue in
-                            draft.ratePerKm = max(0, newValue)
-                            // Eigener Wert → Fahrzeugart „Eigener Satz“
-                            if draft.vehicleType.defaultRate != newValue { draft.vehicleType = .custom }
-                        }),
+                        set: { draft.ratePerKm = max(0, $0) }),
                               format: .number.precision(.fractionLength(2)).locale(Fmt.locale))
                         .labelsHidden()
                         .multilineTextAlignment(.trailing)
@@ -59,7 +49,7 @@ struct SettingsView: View {
             } header: {
                 Text("Fahrzeug & Kilometerpauschale")
             } footer: {
-                Text("Der Kilometersatz ist frei einstellbar und gilt für neue Fahrten – bereits erfasste Fahrten behalten ihren Satz (änderbar in der jeweiligen Fahrt). Pauschal üblich: 0,30 € (Pkw) bzw. 0,20 € (Motorrad/Motorroller) je gefahrenem Kilometer. Bitte im Zweifel mit der Steuerberatung abstimmen.")
+                Text("Dein Kilometersatz wird bei jeder neuen Fahrt verwendet – unabhängig von der Fahrzeugart. Bereits erfasste Fahrten behalten ihren Satz (in der jeweiligen Fahrt änderbar). Zum Vergleich: Die gesetzliche Pauschale beträgt 0,30 € (Pkw) bzw. 0,20 € (Motorrad).")
             }
 
             Section {

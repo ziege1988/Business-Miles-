@@ -4,7 +4,7 @@ name: Web-App veröffentlichen
 
 on:
   push:
-    branches: [main]
+    branches: [main, "claude/**"]
     paths: ["web/**", "tests/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
 

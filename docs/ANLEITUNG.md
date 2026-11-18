@@ -41,21 +41,17 @@ liegen ausschließlich in deinem OneDrive und sind nie auf GitHub.
 2. Im Abschnitt **Build and deployment** gibt es das Feld **Source**.
    Dort im Auswahlfeld **GitHub Actions** wählen. *(Ein Speichern-Knopf ist nicht nötig.)*
 
-### 1.3 Neuen Stand übernehmen („Merge“)
+### 1.3 Veröffentlichung starten
 
-Der fertige Code liegt in einem Arbeitszweig. Er muss einmal in den Hauptzweig `main`
-übernommen werden. Das geht über einen sogenannten *Pull Request*:
-
-1. Oben auf den Reiter **Pull requests** klicken.
-2. Den Eintrag **Business Miles: Mac-App + iPhone-Web-App** öffnen.
-   *(Falls noch keiner da ist: Claude kurz Bescheid geben – Claude legt ihn an.)*
-3. Ganz unten auf den grünen Knopf **Merge pull request** klicken, dann **Confirm merge**.
+1. Oben auf den Reiter **Actions** klicken.
+2. Links auf **Web-App veröffentlichen** klicken.
+3. Rechts auf **Run workflow** und im aufklappenden Fenster nochmals auf den grünen Knopf **Run workflow**.
+   *(Alternativ einfach Claude Bescheid geben – Claude startet das für dich.)*
 
 ### 1.4 Prüfen
 
 1. Oben auf den Reiter **Actions** klicken.
-2. Dort laufen jetzt zwei Vorgänge: **Web-App veröffentlichen** und **Mac-App bauen**.
-   Nach 1–5 Minuten erscheint je ein **grüner Haken ✓**.
+2. Nach 1–5 Minuten erscheint bei **Web-App veröffentlichen** ein **grüner Haken ✓**.
 3. Im Browser **https://ziege1988.github.io/Business-Miles-/** öffnen.
    Die App erscheint mit dem Hinweis „OneDrive noch nicht eingerichtet“ – **das ist richtig**,
    das erledigt Teil 2.

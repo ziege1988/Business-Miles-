@@ -1,9 +1,9 @@
 // Datenmodell + Zusammenführung (siehe docs/DATENFORMAT.md). Muss zur Mac-App passen.
 
 export const VEHICLE_TYPES = {
-  car: { label: "Pkw", rate: 0.30 },
-  motorcycle: { label: "Motorrad / Motorroller", rate: 0.20 },
-  custom: { label: "Eigener Satz", rate: null },
+  car: { label: "Pkw", exportLabel: "Privat-Pkw" },
+  motorcycle: { label: "Motorrad / Motorroller", exportLabel: "Privates Motorrad / Motorroller" },
+  custom: { label: "Sonstiges", exportLabel: "Privatfahrzeug" },
 };
 
 export const nowISO = () => new Date().toISOString();
