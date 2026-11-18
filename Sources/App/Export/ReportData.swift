@@ -66,7 +66,7 @@ struct ReportData {
     /// Haben Fahrten unterschiedliche km-Sätze?
     var hasMixedRates: Bool { Set(rows.map(\.rate)).count > 1 }
     var hasTimes: Bool { rows.contains { !$0.timeRange.isEmpty } }
-    var hasPendingKm: Bool { rows.contains(\.kmPending) }
+    var hasPendingKm: Bool { rows.contains { $0.kmPending } }
     var rateLabel: String {
         hasMixedRates ? "je Fahrt angegeben (Standard \(Fmt.rate(header.rate)) je km)" : "\(Fmt.rate(rows.first?.rate ?? header.rate)) je km"
     }

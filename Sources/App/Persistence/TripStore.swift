@@ -16,7 +16,7 @@ final class TripStore: ObservableObject {
         case failed(String)
     }
 
-    static let fileName = "business-miles.json"
+    nonisolated static let fileName = "business-miles.json"
 
     @Published private(set) var doc = DataFile()
     @Published private(set) var folderURL: URL?
