@@ -15,6 +15,7 @@ struct TripEditorView: View {
     @State private var isCalculating = false
     @State private var routeError: String? = nil
     @State private var confirmDelete = false
+    @State private var showTimes = false
 
     init(request: EditorRequest) {
         self.request = request
@@ -87,9 +88,20 @@ struct TripEditorView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Datum") {
+                Section {
                     DatePicker("Datum", selection: $trip.date, displayedComponents: .date)
                         .environment(\.locale, Fmt.locale)
+                    Toggle("Uhrzeiten angeben", isOn: $showTimes.animation())
+                    if showTimes {
+                        DatePicker("Abfahrt", selection: timeBinding(\.departureTime, fallback: "08:00"),
+                                   displayedComponents: .hourAndMinute)
+                        DatePicker("Rückkehr", selection: timeBinding(\.returnTime, fallback: "17:00"),
+                                   displayedComponents: .hourAndMinute)
+                    }
+                } header: {
+                    Text("Datum")
+                } footer: {
+                    Text("Uhrzeiten sind optional – sinnvoll z. B. für den Verpflegungsmehraufwand (Abwesenheit über 8 Stunden).")
                 }
 
                 Section("Kunde & Anlass") {
@@ -176,6 +188,10 @@ struct TripEditorView: View {
             }
         }
         .frame(minWidth: 580, idealWidth: 620, minHeight: 720, idealHeight: 820)
+        .onAppear {
+            if trip.ratePerKm == nil { trip.ratePerKm = store.settings.ratePerKm }
+            showTimes = !trip.departureTime.isEmpty || !trip.returnTime.isEmpty
+        }
     }
 
     // MARK: Abschnitte
@@ -242,14 +258,24 @@ struct TripEditorView: View {
                     .foregroundStyle(Theme.accentDeep)
             }
             HStack {
-                Text("Pauschale (\(Fmt.rate(store.settings.ratePerKm))/km)")
+                Text("Kilometersatz")
+                Spacer()
+                TextField("Satz", value: rateBinding,
+                          format: .number.precision(.fractionLength(2)).locale(Fmt.locale))
+                    .labelsHidden()
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 70)
+                Text("€ / km").foregroundStyle(Theme.secondaryText)
+            }
+            HStack {
+                Text("Fahrtkosten")
                     .foregroundStyle(Theme.secondaryText)
                 Spacer()
                 Text(Fmt.euro(trip.amount(rate: store.settings.ratePerKm)))
-                    .foregroundStyle(Theme.secondaryText)
+                    .font(.headline)
+                    .foregroundStyle(Theme.accentDeep)
                     .monospacedDigit()
             }
-            .font(.subheadline)
 
             HStack(spacing: 8) {
                 if isCalculating {
@@ -280,6 +306,29 @@ struct TripEditorView: View {
         } footer: {
             Text("Die Kilometer werden per Apple Karten (Auto, empfohlene Route) berechnet und können überschrieben werden.")
         }
+    }
+
+    private var rateBinding: Binding<Double> {
+        Binding(
+            get: { trip.ratePerKm ?? store.settings.ratePerKm },
+            set: { trip.ratePerKm = max(0, $0) }
+        )
+    }
+
+    /// Bindet ein "HH:MM"-Feld an einen Uhrzeit-Picker.
+    private func timeBinding(_ keyPath: WritableKeyPath<Trip, String>, fallback: String) -> Binding<Date> {
+        Binding(
+            get: {
+                let parts = (trip[keyPath: keyPath].isEmpty ? fallback : trip[keyPath: keyPath])
+                    .split(separator: ":").compactMap { Int($0) }
+                return Fmt.calendar.date(bySettingHour: parts.first ?? 8, minute: parts.count > 1 ? parts[1] : 0,
+                                         second: 0, of: Date()) ?? Date()
+            },
+            set: { date in
+                let c = Fmt.calendar.dateComponents([.hour, .minute], from: date)
+                trip[keyPath: keyPath] = String(format: "%02d:%02d", c.hour ?? 0, c.minute ?? 0)
+            }
+        )
     }
 
     private func kmRow(_ title: String, value: Binding<Double>) -> some View {
@@ -345,6 +394,15 @@ struct TripEditorView: View {
         t.outboundKm = max(0, t.outboundKm)
         t.returnKm = t.returnEnabled ? max(0, t.returnKm) : 0
         t.kmPending = t.totalKm <= 0
+        if t.ratePerKm == nil { t.ratePerKm = store.settings.ratePerKm }
+        if showTimes {
+            // Uhrzeit-Picker angezeigt, aber nie bewegt → Standardwerte übernehmen
+            if t.departureTime.isEmpty { t.departureTime = "08:00" }
+            if t.returnTime.isEmpty { t.returnTime = "17:00" }
+        } else {
+            t.departureTime = ""
+            t.returnTime = ""
+        }
         t.source = "mac"
         store.upsert(t)
         dismiss()

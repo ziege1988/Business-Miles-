@@ -43,18 +43,23 @@ struct SettingsView: View {
                 HStack {
                     Text("Kilometersatz")
                     Spacer()
-                    TextField("Satz", value: $draft.ratePerKm,
+                    TextField("Satz", value: Binding(
+                        get: { draft.ratePerKm },
+                        set: { newValue in
+                            draft.ratePerKm = max(0, newValue)
+                            // Eigener Wert → Fahrzeugart „Eigener Satz“
+                            if draft.vehicleType.defaultRate != newValue { draft.vehicleType = .custom }
+                        }),
                               format: .number.precision(.fractionLength(2)).locale(Fmt.locale))
                         .labelsHidden()
                         .multilineTextAlignment(.trailing)
                         .frame(width: 80)
-                        .disabled(draft.vehicleType != .custom)
                     Text("€ / km").foregroundStyle(Theme.secondaryText)
                 }
             } header: {
                 Text("Fahrzeug & Kilometerpauschale")
             } footer: {
-                Text("Für betrieblich veranlasste Fahrten mit einem privaten Fahrzeug können pauschal 0,30 € (Pkw) bzw. 0,20 € (Motorrad/Motorroller) je gefahrenem Kilometer angesetzt werden. Bitte im Zweifel mit der Steuerberatung abstimmen.")
+                Text("Der Kilometersatz ist frei einstellbar und gilt für neue Fahrten – bereits erfasste Fahrten behalten ihren Satz (änderbar in der jeweiligen Fahrt). Pauschal üblich: 0,30 € (Pkw) bzw. 0,20 € (Motorrad/Motorroller) je gefahrenem Kilometer. Bitte im Zweifel mit der Steuerberatung abstimmen.")
             }
 
             Section {

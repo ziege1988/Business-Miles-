@@ -8,6 +8,7 @@ struct MonthSummary: Identifiable {
 
     var totalKm: Double { trips.reduce(0) { $0 + $1.totalKm } }
     var name: String { Fmt.monthName(month) }
+    func amount(defaultRate: Double) -> Double { trips.reduce(0) { $0 + $1.amount(rate: defaultRate) } }
 }
 
 struct YearSummary: Identifiable {
@@ -18,6 +19,7 @@ struct YearSummary: Identifiable {
     var trips: [Trip] { months.reversed().flatMap(\.trips) }
     var totalKm: Double { months.reduce(0) { $0 + $1.totalKm } }
     var tripCount: Int { months.reduce(0) { $0 + $1.trips.count } }
+    func amount(defaultRate: Double) -> Double { months.reduce(0) { $0 + $1.amount(defaultRate: defaultRate) } }
     var activeMonths: [MonthSummary] { months.filter { !$0.trips.isEmpty }.reversed() }
 }
 

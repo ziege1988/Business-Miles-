@@ -1,0 +1,65 @@
+# Baut die Mac-App auf einem Mac von GitHub und stellt sie als ZIP bereit.
+# - Bei jedem Push: Build-Prüfung + ZIP als „Artifact“ (Actions → Lauf → unten „Artifacts“)
+# - Auf main: zusätzlich ein Release mit der ZIP-Datei (Repository-Seite → „Releases“)
+name: Mac-App bauen
+
+on:
+  push:
+    branches: [main, "claude/**"]
+    paths: ["Sources/**", "Resources/**", "project.yml", ".github/workflows/mac-app.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: XcodeGen installieren
+        run: brew install xcodegen
+
+      - name: Xcode-Projekt erzeugen
+        run: xcodegen generate
+
+      - name: Bauen (ohne Apple-Team, ad hoc signiert)
+        run: |
+          set -o pipefail
+          xcodebuild -version
+          xcodebuild \
+            -project BusinessMiles.xcodeproj \
+            -scheme BusinessMiles \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= \
+            build 2>&1 | tee xcodebuild.log | grep -E "error:|warning: .*(deprecated)?|BUILD (SUCCEEDED|FAILED)" || true
+          test -d "build/Build/Products/Release/Business Miles.app"
+
+      - name: Fehlerprotokoll
+        if: failure()
+        run: grep -n "error:" xcodebuild.log | head -100 || true
+
+      - name: Signatur prüfen und ZIP erstellen
+        run: |
+          APP="build/Build/Products/Release/Business Miles.app"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          ditto -c -k --keepParent "$APP" Business-Miles-Mac.zip
+          ls -la Business-Miles-Mac.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Business-Miles-Mac
+          path: Business-Miles-Mac.zip
+
+      - name: Release veröffentlichen (nur main)
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "mac-build-${{ github.run_number }}" Business-Miles-Mac.zip \
+            --title "Business Miles für Mac – Build ${{ github.run_number }}" \
+            --notes "ZIP herunterladen, entpacken und „Business Miles“ in den Ordner Programme ziehen. Beim ersten Start: Systemeinstellungen → Datenschutz & Sicherheit → „Dennoch öffnen“." \
+            --latest

@@ -143,7 +143,7 @@ struct ReportPageView: View {
                 Text(report.title)
                     .font(.system(size: 20, weight: .bold))
                     .foregroundStyle(Theme.accentDeep)
-                Text("Nachweis betrieblich veranlasster Fahrten · Kilometersatz \(Fmt.rate(report.header.rate)) je km")
+                Text("Nachweis betrieblich veranlasster Fahrten · Kilometersatz \(report.rateLabel)")
                     .font(.system(size: 9))
                     .foregroundStyle(Theme.secondaryText)
             }
@@ -153,7 +153,7 @@ struct ReportPageView: View {
                 infoLine("Firma", report.header.company)
                 infoLine("Anschrift", report.header.address)
                 infoLine("Steuernummer", report.header.taxNumber)
-                infoLine("Fahrzeug", report.header.vehicle)
+                infoLine("Fahrzeug", [report.header.vehicleType, report.header.vehicle].filter { !$0.isEmpty }.joined(separator: " · "))
             }
             .frame(width: 300, alignment: .leading)
         }
@@ -216,9 +216,9 @@ struct ReportPageView: View {
 
     private func rowView(_ row: ReportData.Row) -> some View {
         HStack(alignment: .top, spacing: 0) {
-            cell(Fmt.date(row.date), L.colDate)
+            cell(row.timeRange.isEmpty ? Fmt.date(row.date) : "\(Fmt.date(row.date))\n\(row.timeRange)", L.colDate, lines: 2)
             cell(row.customer, L.colCustomer, lines: 2)
-            cell(row.purpose, L.colPurpose, lines: 2)
+            cell([row.purpose, row.note].filter { !$0.isEmpty }.joined(separator: "\n"), L.colPurpose, lines: 2)
             cell(row.start, L.colStart, lines: 2)
             cell(row.returnEnabled && row.returnTo != row.start && !row.returnTo.isEmpty
                     ? "\(row.destination)\n↩ \(row.returnTo)"
@@ -226,8 +226,9 @@ struct ReportPageView: View {
                  L.colDestination, lines: 2)
             cell(Fmt.number(row.outboundKm), L.colKm, trailing: true)
             cell(row.returnEnabled ? Fmt.number(row.returnKm) : "–", L.colKm, trailing: true)
-            cell(Fmt.number(row.totalKm), L.colTotal, trailing: true, bold: true)
-            cell(Fmt.euro(row.amount), L.colAmount, trailing: true)
+            cell(row.kmPending ? "folgt" : Fmt.number(row.totalKm), L.colTotal, trailing: true, bold: true)
+            cell(report.hasMixedRates ? "\(Fmt.euro(row.amount))\n\(Fmt.rate(row.rate))/km" : Fmt.euro(row.amount),
+                 L.colAmount, trailing: true, lines: 2)
         }
         .font(.system(size: 8))
         .padding(.top, 4)

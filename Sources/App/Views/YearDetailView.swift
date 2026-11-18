@@ -78,8 +78,8 @@ struct YearDetailView: View {
             StatCard(title: "Ø pro Fahrt",
                      value: summary.tripCount > 0 ? Fmt.km(summary.totalKm / Double(summary.tripCount)) : "–",
                      icon: "gauge.with.dots.needle.33percent")
-            StatCard(title: "Pauschale (\(Fmt.rate(rate))/km)",
-                     value: Fmt.euro(summary.totalKm * rate),
+            StatCard(title: "Fahrtkosten",
+                     value: Fmt.euro(summary.amount(defaultRate: rate)),
                      icon: "eurosign.circle")
         }
     }
@@ -190,7 +190,7 @@ private struct MonthSection: View {
                 Spacer()
                 Text(Fmt.km(month.totalKm))
                     .font(.subheadline.weight(.semibold))
-                Text(Fmt.euro(month.totalKm * rate))
+                Text(Fmt.euro(month.amount(defaultRate: rate)))
                     .font(.subheadline)
                     .foregroundStyle(Theme.secondaryText)
                     .frame(minWidth: 90, alignment: .trailing)

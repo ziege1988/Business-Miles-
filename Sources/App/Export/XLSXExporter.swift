@@ -24,11 +24,13 @@ enum XLSXExporter {
         static let muted = 15
     }
 
-    private static let columns = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
-    private static let widths: [Double] = [12, 24, 24, 32, 32, 32, 11, 11, 11, 13]
-    private static let headers = ["Datum", "Kunde / Geschäftspartner", "Anlass / Zweck",
+    // Spalten: A Datum · B Abfahrt · C Rückkehr · D Kunde · E Anlass · F Start · G Ziel · H Rückfahrt nach
+    //          I Hin km · J Rück km · K Gesamt km · L €/km · M Betrag · N Bemerkung
+    private static let columns = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N"]
+    private static let widths: [Double] = [11, 8, 9, 22, 22, 28, 28, 28, 10, 11, 10, 9, 12, 24]
+    private static let headers = ["Datum", "Abfahrt", "Rückkehr", "Kunde / Geschäftspartner", "Anlass / Zweck",
                                   "Startadresse", "Zieladresse", "Rückfahrt nach",
-                                  "Hinfahrt km", "Rückfahrt km", "Gesamt km", "Betrag €"]
+                                  "Hinfahrt km", "Rückfahrt km", "Gesamt km", "€ / km", "Betrag €", "Bemerkung"]
 
     static func make(_ report: ReportData) -> Data {
         var zip = ZipArchive(date: report.createdAt)
@@ -54,6 +56,7 @@ enum XLSXExporter {
             rows.append("<row r=\"\(r)\"\(ht)>" + cells.joined() + "</row>")
         }
         func ref(_ col: Int) -> String { "\(columns[col])\(r + 1)" } // Zelle der nächsten Zeile
+        func filled(_ style: Int, from: Int, to: Int) -> [String] { (from...to).map { empty(ref($0), style) } }
 
         // Kopfbereich
         addRow([text(ref(0), report.title, S.title)], height: 24)
@@ -63,8 +66,9 @@ enum XLSXExporter {
         if !h.company.isEmpty { info.append("Firma: \(h.company)") }
         if !h.address.isEmpty { info.append("Anschrift / Startadresse: \(h.address)") }
         if !h.taxNumber.isEmpty { info.append("Steuernummer: \(h.taxNumber)") }
-        if !h.vehicle.isEmpty { info.append("Fahrzeug: \(h.vehicle)") }
-        info.append("Kilometersatz: \(Fmt.rate(h.rate)) je km")
+        info.append("Fahrzeug: " + ([h.vehicleType, h.vehicle].filter { !$0.isEmpty }.joined(separator: " · ")))
+        info.append("Art der Fahrten: betrieblich veranlasste Fahrten (Kundentermine)")
+        info.append("Kilometersatz: \(report.rateLabel)")
         info.append("Zeitraum: \(report.periodLabel)")
         for line in info { addRow([text(ref(0), line, S.normal)]) }
         addRow([])
@@ -77,36 +81,42 @@ enum XLSXExporter {
 
         for group in report.groups {
             let monthLabel = "\(Fmt.monthName(group.month)) \(report.year)"
-            addRow((0..<columns.count).map { col in
-                col == 0 ? text(ref(0), monthLabel, S.monthHeader) : empty(ref(col), S.monthHeader)
-            })
+            addRow([text(ref(0), monthLabel, S.monthHeader)] + filled(S.monthHeader, from: 1, to: columns.count - 1))
 
             let first = r + 1
             for row in group.rows {
+                let n = r + 1
+                var remark = row.note
+                if row.kmPending { remark = remark.isEmpty ? "km noch nicht berechnet" : "km noch nicht berechnet · " + remark }
                 addRow([
                     number(ref(0), excelDate(row.date), S.date),
-                    text(ref(1), row.customer, S.wrap),
-                    text(ref(2), row.purpose, S.wrap),
-                    text(ref(3), row.start, S.wrap),
-                    text(ref(4), row.destination, S.wrap),
-                    text(ref(5), row.returnEnabled ? row.returnTo : "– (einfache Fahrt)", S.wrap),
-                    number(ref(6), row.outboundKm, S.km),
-                    number(ref(7), row.returnKm, S.km),
-                    formula(ref(8), "G\(r + 1)+H\(r + 1)", row.totalKm, S.km),
-                    formula(ref(9), "ROUND(I\(r + 1)*\(xmlNumber(h.rate)),2)", row.amount, S.euro)
+                    text(ref(1), row.departureTime, S.wrap),
+                    text(ref(2), row.returnTime, S.wrap),
+                    text(ref(3), row.customer, S.wrap),
+                    text(ref(4), row.purpose, S.wrap),
+                    text(ref(5), row.start, S.wrap),
+                    text(ref(6), row.destination, S.wrap),
+                    text(ref(7), row.returnEnabled ? row.returnTo : "– (einfache Fahrt)", S.wrap),
+                    number(ref(8), row.outboundKm, S.km),
+                    number(ref(9), row.returnKm, S.km),
+                    formula(ref(10), "I\(n)+J\(n)", row.totalKm, S.km),
+                    number(ref(11), row.rate, S.euro),
+                    formula(ref(12), "ROUND(K\(n)*L\(n),2)", row.amount, S.euro),
+                    text(ref(13), remark, S.wrap)
                 ])
             }
             let last = r
 
-            addRow([
-                text(ref(0), "Summe \(Fmt.monthName(group.month))", S.totalLabel),
-                empty(ref(1), S.totalLabel), empty(ref(2), S.totalLabel), empty(ref(3), S.totalLabel),
-                empty(ref(4), S.totalLabel), empty(ref(5), S.totalLabel),
-                formula(ref(6), "SUM(G\(first):G\(last))", group.outboundKm, S.totalKm),
-                formula(ref(7), "SUM(H\(first):H\(last))", group.returnKm, S.totalKm),
-                formula(ref(8), "SUM(I\(first):I\(last))", group.totalKm, S.totalKm),
-                formula(ref(9), "SUM(J\(first):J\(last))", group.amount, S.totalEuro)
-            ])
+            addRow([text(ref(0), "Summe \(Fmt.monthName(group.month))", S.totalLabel)]
+                + filled(S.totalLabel, from: 1, to: 7)
+                + [
+                    formula(ref(8), "SUM(I\(first):I\(last))", group.outboundKm, S.totalKm),
+                    formula(ref(9), "SUM(J\(first):J\(last))", group.returnKm, S.totalKm),
+                    formula(ref(10), "SUM(K\(first):K\(last))", group.totalKm, S.totalKm),
+                    empty(ref(11), S.totalLabel),
+                    formula(ref(12), "SUM(M\(first):M\(last))", group.amount, S.totalEuro),
+                    empty(ref(13), S.totalLabel)
+                ])
             subtotalRows.append(r)
             addRow([])
         }
@@ -115,18 +125,22 @@ enum XLSXExporter {
         func sumOf(_ col: String) -> String {
             subtotalRows.isEmpty ? "0" : subtotalRows.map { "\(col)\($0)" }.joined(separator: "+")
         }
-        addRow([
-            text(ref(0), "Gesamt \(report.periodLabel) (\(Fmt.tripCount(report.tripCount)))", S.grandLabel),
-            empty(ref(1), S.grandLabel), empty(ref(2), S.grandLabel), empty(ref(3), S.grandLabel),
-            empty(ref(4), S.grandLabel), empty(ref(5), S.grandLabel),
-            formula(ref(6), sumOf("G"), report.outboundKm, S.grandKm),
-            formula(ref(7), sumOf("H"), report.returnKm, S.grandKm),
-            formula(ref(8), sumOf("I"), report.totalKm, S.grandKm),
-            formula(ref(9), sumOf("J"), report.amount, S.grandEuro)
-        ], height: 22)
+        addRow([text(ref(0), "Gesamt \(report.periodLabel) (\(Fmt.tripCount(report.tripCount)))", S.grandLabel)]
+            + filled(S.grandLabel, from: 1, to: 7)
+            + [
+                formula(ref(8), sumOf("I"), report.outboundKm, S.grandKm),
+                formula(ref(9), sumOf("J"), report.returnKm, S.grandKm),
+                formula(ref(10), sumOf("K"), report.totalKm, S.grandKm),
+                empty(ref(11), S.grandLabel),
+                formula(ref(12), sumOf("M"), report.amount, S.grandEuro),
+                empty(ref(13), S.grandLabel)
+            ], height: 22)
 
         addRow([])
-        addRow([text(ref(0), "Erstellt am \(Fmt.date(report.createdAt)) mit Business Miles. Kilometer laut Routenberechnung (Apple Maps) bzw. manueller Angabe.", S.muted)])
+        if report.hasPendingKm {
+            addRow([text(ref(0), "Hinweis: Einige Fahrten enthalten noch keine berechneten Kilometer (Spalte „Bemerkung“).", S.muted)])
+        }
+        addRow([text(ref(0), "Erstellt am \(Fmt.date(report.createdAt)) mit Business Miles. Kilometer laut Routenberechnung bzw. manueller Angabe; Startadresse je Fahrt wie zum Zeitpunkt der Erfassung.", S.muted)])
         addRow([])
         addRow([text(ref(0), "Ort, Datum: ______________________________        Unterschrift: ______________________________", S.normal)])
 
@@ -138,12 +152,12 @@ enum XLSXExporter {
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
         <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">\
         <sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>\
-        <dimension ref="A1:J\(max(r, 1))"/>\
+        <dimension ref="A1:N\(max(r, 1))"/>\
         <sheetViews><sheetView workbookViewId="0"><pane ySplit="\(headerRow)" topLeftCell="A\(headerRow + 1)" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>\
         <sheetFormatPr defaultRowHeight="15"/>\
         <cols>\(cols)</cols>\
         <sheetData>\(rows.joined())</sheetData>\
-        <pageMargins left="0.4" right="0.4" top="0.6" bottom="0.6" header="0.3" footer="0.3"/>\
+        <pageMargins left="0.3" right="0.3" top="0.5" bottom="0.5" header="0.3" footer="0.3"/>\
         <pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/>\
         <headerFooter><oddFooter>&amp;L\(xmlEscape(report.title))&amp;RSeite &amp;P von &amp;N</oddFooter></headerFooter>\
         </worksheet>

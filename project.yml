@@ -1,12 +1,10 @@
 # Business Miles – Mac-App + Widget. Projektdefinition für XcodeGen (https://github.com/yonaskolb/XcodeGen)
 # Erzeugen:  xcodegen generate   →   BusinessMiles.xcodeproj öffnen
 #
-# >>> Vor dem ersten Build die beiden Werte unter settings.base anpassen:
-#     BUNDLE_ID_PREFIX  – eigene, umgekehrte Domain (z. B. de.meinefirma)
-#     DEVELOPMENT_TEAM  – Team-ID deines kostenlosen Apple-Accounts (Xcode → Settings → Accounts → Team)
+# Normalerweise baust du nichts selbst: GitHub baut die App automatisch und stellt sie
+# als ZIP unter „Releases“ bereit (siehe .github/workflows/mac-app.yml).
 #
-# Kein kostenpflichtiger Apple-Developer-Account nötig: Die Daten liegen in OneDrive,
-# nicht in iCloud. Die Mac-App läuft mit der kostenlosen Apple-ID dauerhaft.
+# Signatur: „Sign to Run Locally“ (ad hoc) – keine Apple-ID, keine Team-ID, kein Developer-Account.
 
 name: BusinessMiles
 
@@ -19,9 +17,11 @@ options:
 
 settings:
   base:
-    BUNDLE_ID_PREFIX: de.example
+    BUNDLE_ID_PREFIX: app.businessmiles
     DEVELOPMENT_TEAM: ""
-    CODE_SIGN_STYLE: Automatic
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    PROVISIONING_PROFILE_SPECIFIER: ""
     SWIFT_VERSION: "5.0"
     MARKETING_VERSION: "1.0.0"
     CURRENT_PROJECT_VERSION: "1"
@@ -52,16 +52,7 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: $(PRODUCT_BUNDLE_IDENTIFIER)
             CFBundleURLSchemes: [businessmiles]
-        # App Group (Team-ID als Präfix) – darüber bekommt das Widget seine Zahlen
-        BMAppGroupID: $(DEVELOPMENT_TEAM).$(BUNDLE_ID_PREFIX).businessmiles
-    entitlements:
-      path: Config/BusinessMiles.entitlements
-      properties:
-        com.apple.security.app-sandbox: true
-        com.apple.security.network.client: true
-        com.apple.security.files.user-selected.read-write: true
-        com.apple.security.files.bookmarks.app-scope: true
-        com.apple.security.application-groups: [$(DEVELOPMENT_TEAM).$(BUNDLE_ID_PREFIX).businessmiles]
+        NSHumanReadableCopyright: ""
     settings:
       base:
         PRODUCT_NAME: Business Miles
@@ -85,12 +76,13 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
-        BMAppGroupID: $(DEVELOPMENT_TEAM).$(BUNDLE_ID_PREFIX).businessmiles
     entitlements:
       path: Config/Widget.entitlements
       properties:
+        # Widgets müssen in der Sandbox laufen; Lesezugriff nur auf die Widget-Daten der App
         com.apple.security.app-sandbox: true
-        com.apple.security.application-groups: [$(DEVELOPMENT_TEAM).$(BUNDLE_ID_PREFIX).businessmiles]
+        com.apple.security.temporary-exception.files.home-relative-path.read-only:
+          - /Library/Application Support/BusinessMiles/
     settings:
       base:
         PRODUCT_NAME: BusinessMilesWidget

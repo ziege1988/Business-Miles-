@@ -70,8 +70,6 @@ enum ExportService {
     /// Speichert im Standard-Exportordner. Gibt `nil` zurück, wenn keiner hinterlegt ist.
     static func saveToExportFolder(_ data: Data, fileName: String) throws -> URL? {
         guard let folder = ExportFolderStore.folderURL() else { return nil }
-        let accessing = folder.startAccessingSecurityScopedResource()
-        defer { if accessing { folder.stopAccessingSecurityScopedResource() } }
         let target = uniqueURL(in: folder, fileName: fileName)
         try data.write(to: target, options: .atomic)
         return target
@@ -105,18 +103,14 @@ enum ExportService {
     }
 }
 
-/// Merkt sich den Exportordner (Security-Scoped Bookmark, nur auf diesem Mac).
+/// Merkt sich den Exportordner (nur auf diesem Mac).
 enum ExportFolderStore {
-    private static let key = "exportFolderBookmark"
+    private static let key = "exportFolderPath"
 
     static func folderURL() -> URL? {
-        guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
-        var stale = false
-        guard let url = try? URL(resolvingBookmarkData: data, options: .withSecurityScope,
-                                 relativeTo: nil, bookmarkDataIsStale: &stale)
-        else { return nil }
-        if stale { store(url) }
-        return url
+        guard let path = UserDefaults.standard.string(forKey: key),
+              FileManager.default.fileExists(atPath: path) else { return nil }
+        return URL(fileURLWithPath: path, isDirectory: true)
     }
 
     @discardableResult
@@ -128,18 +122,11 @@ enum ExportFolderStore {
         panel.allowsMultipleSelection = false
         panel.prompt = "Als Exportordner wählen"
         guard panel.runModal() == .OK, let url = panel.url else { return nil }
-        store(url)
+        UserDefaults.standard.set(url.path, forKey: key)
         return url
     }
 
     static func clear() {
         UserDefaults.standard.removeObject(forKey: key)
-    }
-
-    private static func store(_ url: URL) {
-        if let data = try? url.bookmarkData(options: .withSecurityScope,
-                                            includingResourceValuesForKeys: nil, relativeTo: nil) {
-            UserDefaults.standard.set(data, forKey: key)
-        }
     }
 }

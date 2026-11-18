@@ -15,8 +15,13 @@ struct ReportData {
         let outboundKm: Double
         let returnKm: Double
         let totalKm: Double
+        let rate: Double
         let amount: Double
         let note: String
+        let departureTime: String
+        let returnTime: String
+        let timeRange: String
+        let kmPending: Bool
     }
 
     struct MonthGroup: Identifiable {
@@ -35,6 +40,7 @@ struct ReportData {
         var address: String
         var taxNumber: String
         var vehicle: String
+        var vehicleType: String
         var rate: Double
     }
 
@@ -57,6 +63,13 @@ struct ReportData {
     var outboundKm: Double { groups.reduce(0) { $0 + $1.outboundKm } }
     var returnKm: Double { groups.reduce(0) { $0 + $1.returnKm } }
     var amount: Double { groups.reduce(0) { $0 + $1.amount } }
+    /// Haben Fahrten unterschiedliche km-Sätze?
+    var hasMixedRates: Bool { Set(rows.map(\.rate)).count > 1 }
+    var hasTimes: Bool { rows.contains { !$0.timeRange.isEmpty } }
+    var hasPendingKm: Bool { rows.contains(\.kmPending) }
+    var rateLabel: String {
+        hasMixedRates ? "je Fahrt angegeben (Standard \(Fmt.rate(header.rate)) je km)" : "\(Fmt.rate(rows.first?.rate ?? header.rate)) je km"
+    }
 
     var fileBaseName: String {
         if let month { return String(format: "Business-Miles_Fahrten_%04d-%02d", year, month) }
@@ -71,7 +84,9 @@ struct ReportData {
             !m.trips.isEmpty && (month == nil || m.month == month)
         }
         let groups = months.map { m in
-            MonthGroup(month: m.month, rows: m.trips.sorted { $0.date < $1.date }.map { row(for: $0, rate: rate) })
+            MonthGroup(month: m.month, rows: m.trips
+                .sorted { ($0.day, $0.departureTime) < ($1.day, $1.departureTime) }
+                .map { row(for: $0, rate: rate) })
         }
         let header = Header(
             name: settings.fullName,
@@ -79,6 +94,7 @@ struct ReportData {
             address: settings.home.singleLine,
             taxNumber: settings.taxNumber,
             vehicle: settings.vehicleDescription,
+            vehicleType: settings.vehicleType == .motorcycle ? "Privates Motorrad / Motorroller" : "Privatfahrzeug",
             rate: rate
         )
         return ReportData(year: summary.year, month: month, header: header, groups: groups, createdAt: .now)
@@ -97,8 +113,13 @@ struct ReportData {
             outboundKm: trip.outboundKm,
             returnKm: trip.returnEnabled ? trip.returnKm : 0,
             totalKm: trip.totalKm,
+            rate: trip.rate(default: rate),
             amount: trip.amount(rate: rate),
-            note: trip.note
+            note: trip.note,
+            departureTime: trip.departureTime,
+            returnTime: trip.returnTime,
+            timeRange: trip.timeRange,
+            kmPending: trip.kmPending
         )
     }
 }

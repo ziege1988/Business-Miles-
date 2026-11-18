@@ -60,6 +60,11 @@ struct Trip: Identifiable, Hashable {
 
     var outboundKm: Double = 0
     var returnKm: Double = 0
+    /// Kilometersatz dieser Fahrt (€/km). nil = Satz aus den Einstellungen.
+    var ratePerKm: Double? = nil
+    /// Optionale Uhrzeiten "HH:MM" (z. B. für Verpflegungsmehraufwand)
+    var departureTime: String = ""
+    var returnTime: String = ""
     /// Offline erfasst – km werden nachberechnet.
     var kmPending: Bool = false
 
@@ -85,13 +90,29 @@ struct Trip: Identifiable, Hashable {
 
     var routeDescription: String { returnEnabled ? "Hin & zurück" : "Einfache Fahrt" }
 
-    func amount(rate: Double) -> Double { (totalKm * rate * 100).rounded() / 100 }
+    /// Wirksamer km-Satz: eigener Satz der Fahrt, sonst der aus den Einstellungen.
+    func rate(default defaultRate: Double) -> Double { ratePerKm ?? defaultRate }
+
+    func amount(rate defaultRate: Double) -> Double {
+        (totalKm * rate(default: defaultRate) * 100).rounded() / 100
+    }
+
+    /// "08:30–17:45", "ab 08:30" oder ""
+    var timeRange: String {
+        switch (departureTime.isEmpty, returnTime.isEmpty) {
+        case (false, false): return "\(departureTime)–\(returnTime)"
+        case (false, true): return "ab \(departureTime)"
+        case (true, false): return "bis \(returnTime)"
+        case (true, true): return ""
+        }
+    }
 }
 
 extension Trip: Codable {
     private enum CodingKeys: String, CodingKey {
         case id, date, customer, purpose, note, destination, startUsesHome, start
         case returnEnabled, returnUsesHome, returnTo, outboundKm, returnKm, kmPending
+        case ratePerKm, departureTime, returnTime
         case source, createdAt, updatedAt, deleted
     }
 
@@ -113,6 +134,9 @@ extension Trip: Codable {
         outboundKm = opt(Double.self, .outboundKm) ?? 0
         returnKm = opt(Double.self, .returnKm) ?? 0
         kmPending = opt(Bool.self, .kmPending) ?? false
+        ratePerKm = opt(Double.self, .ratePerKm)
+        departureTime = opt(String.self, .departureTime) ?? ""
+        returnTime = opt(String.self, .returnTime) ?? ""
         source = opt(String.self, .source) ?? ""
         createdAt = ISOTime.date(opt(String.self, .createdAt)) ?? ISOTime.now
         updatedAt = ISOTime.date(opt(String.self, .updatedAt)) ?? Date(timeIntervalSince1970: 0)
@@ -135,6 +159,9 @@ extension Trip: Codable {
         try c.encode(outboundKm, forKey: .outboundKm)
         try c.encode(returnKm, forKey: .returnKm)
         try c.encode(kmPending, forKey: .kmPending)
+        try c.encode(ratePerKm, forKey: .ratePerKm)
+        try c.encode(departureTime, forKey: .departureTime)
+        try c.encode(returnTime, forKey: .returnTime)
         try c.encode(source, forKey: .source)
         try c.encode(ISOTime.string(createdAt), forKey: .createdAt)
         try c.encode(ISOTime.string(updatedAt), forKey: .updatedAt)

@@ -31,11 +31,12 @@ final class TripStore: ObservableObject {
     private var timer: Timer?
     private var resolvingDistances = false
 
-    private static let bookmarkKey = "oneDriveFolderBookmark"
+    private static let folderKey = "oneDriveFolderPath"
 
     init() {
         doc = Self.loadCache() ?? DataFile()
-        folderURL = Self.resolveBookmark()
+        folderURL = Self.savedFolder() ?? Self.detectOneDriveFolder()
+        if let folderURL { UserDefaults.standard.set(folderURL.path, forKey: Self.folderKey) }
         if folderURL == nil { status = .noFolder }
 
         // Regelmäßig nach Änderungen vom iPhone schauen + beim Aktivieren der App
@@ -98,19 +99,10 @@ final class TripStore: ObservableObject {
         panel.canCreateDirectories = false
         panel.prompt = "Ordner verwenden"
         panel.message = "Bitte den OneDrive-Ordner „Business-Miles“ auswählen."
-        if let home = getpwuid(getuid())?.pointee.pw_dir {
-            let cloud = URL(fileURLWithPath: String(cString: home)).appendingPathComponent("Library/CloudStorage")
-            if FileManager.default.fileExists(atPath: cloud.path) { panel.directoryURL = cloud }
-        }
+        let cloud = AppConfig.realHomeDirectory.appendingPathComponent("Library/CloudStorage")
+        if FileManager.default.fileExists(atPath: cloud.path) { panel.directoryURL = cloud }
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        guard let data = try? url.bookmarkData(options: .withSecurityScope,
-                                               includingResourceValuesForKeys: nil, relativeTo: nil) else {
-            status = .failed("Der Ordner konnte nicht gespeichert werden.")
-            return
-        }
-        UserDefaults.standard.set(data, forKey: Self.bookmarkKey)
-        folderURL?.stopAccessingSecurityScopedResource()
-        _ = url.startAccessingSecurityScopedResource()
+        UserDefaults.standard.set(url.path, forKey: Self.folderKey)
         folderURL = url
         sync()
     }
@@ -119,17 +111,27 @@ final class TripStore: ObservableObject {
         folderURL?.lastPathComponent.lowercased().contains("business-miles") ?? false
     }
 
-    private static func resolveBookmark() -> URL? {
-        guard let data = UserDefaults.standard.data(forKey: bookmarkKey) else { return nil }
-        var stale = false
-        guard let url = try? URL(resolvingBookmarkData: data, options: .withSecurityScope,
-                                 relativeTo: nil, bookmarkDataIsStale: &stale) else { return nil }
-        _ = url.startAccessingSecurityScopedResource()
-        if stale, let fresh = try? url.bookmarkData(options: .withSecurityScope,
-                                                    includingResourceValuesForKeys: nil, relativeTo: nil) {
-            UserDefaults.standard.set(fresh, forKey: bookmarkKey)
+    private static func savedFolder() -> URL? {
+        guard let path = UserDefaults.standard.string(forKey: folderKey),
+              FileManager.default.fileExists(atPath: path) else { return nil }
+        return URL(fileURLWithPath: path, isDirectory: true)
+    }
+
+    /// Sucht ~/Library/CloudStorage/OneDrive…/Business-Miles (Groß-/Kleinschreibung egal).
+    static func detectOneDriveFolder() -> URL? {
+        let fm = FileManager.default
+        let cloud = AppConfig.realHomeDirectory.appendingPathComponent("Library/CloudStorage")
+        let drives = ((try? fm.contentsOfDirectory(atPath: cloud.path)) ?? [])
+            .filter { $0.lowercased().hasPrefix("onedrive") }
+            .sorted()
+        for drive in drives {
+            let base = cloud.appendingPathComponent(drive)
+            let entries = (try? fm.contentsOfDirectory(atPath: base.path)) ?? []
+            if let match = entries.first(where: { $0.lowercased() == "business-miles" }) {
+                return base.appendingPathComponent(match, isDirectory: true)
+            }
         }
-        return url
+        return nil
     }
 
     // MARK: Abgleich
@@ -206,8 +208,7 @@ final class TripStore: ObservableObject {
     // MARK: Lokale Kopie
 
     private static var cacheURL: URL {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("BusinessMiles", isDirectory: true)
+        let dir = AppConfig.supportDirectory
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("cache.json")
     }

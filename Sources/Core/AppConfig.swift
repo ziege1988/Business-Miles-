@@ -1,21 +1,22 @@
 import Foundation
 
-/// Zentrale Konfiguration. Die IDs werden beim Build aus `project.yml`
-/// (Variable `BUNDLE_ID_PREFIX`) in die Info.plist geschrieben.
+/// Zentrale Konfiguration (App und Widget).
 enum AppConfig {
-    static let appGroupID: String =
-        (Bundle.main.object(forInfoDictionaryKey: "BMAppGroupID") as? String)
-        ?? "group.de.example.businessmiles"
-
-    static let cloudKitContainerID: String? =
-        Bundle.main.object(forInfoDictionaryKey: "BMCloudKitContainerID") as? String
-
     static let urlScheme = "businessmiles"
     static let newTripURL = URL(string: "businessmiles://new")!
     static let openURL = URL(string: "businessmiles://open")!
 
-    /// Gemeinsame UserDefaults für App und Widget.
-    static var sharedDefaults: UserDefaults {
-        UserDefaults(suiteName: appGroupID) ?? .standard
+    /// Echtes Benutzerverzeichnis – auch aus dem (sandboxed) Widget heraus.
+    static var realHomeDirectory: URL {
+        if let dir = getpwuid(getuid())?.pointee.pw_dir {
+            return URL(fileURLWithPath: String(cString: dir), isDirectory: true)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
+    }
+
+    /// ~/Library/Application Support/BusinessMiles – hier liegen lokale Kopie und Widget-Daten.
+    /// Das Widget darf diesen Ordner lesen (Entitlement „home-relative-path.read-only“).
+    static var supportDirectory: URL {
+        realHomeDirectory.appendingPathComponent("Library/Application Support/BusinessMiles", isDirectory: true)
     }
 }

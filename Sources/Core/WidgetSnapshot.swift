@@ -33,12 +33,12 @@ struct WidgetSnapshot: Codable, Equatable {
         return years[String(y)] ?? Period()
     }
 
-    // MARK: Persistenz
+    // MARK: Persistenz (Datei, ohne App-Group – funktioniert ohne Apple-Team-ID)
 
-    private static let storageKey = "widgetSnapshot.v1"
+    private static var fileURL: URL { AppConfig.supportDirectory.appendingPathComponent("widget.json") }
 
     static func load() -> WidgetSnapshot {
-        guard let data = AppConfig.sharedDefaults.data(forKey: storageKey),
+        guard let data = try? Data(contentsOf: fileURL),
               let snapshot = try? JSONDecoder().decode(WidgetSnapshot.self, from: data)
         else { return .empty }
         return snapshot
@@ -46,7 +46,8 @@ struct WidgetSnapshot: Codable, Equatable {
 
     func save() {
         guard let data = try? JSONEncoder().encode(self) else { return }
-        AppConfig.sharedDefaults.set(data, forKey: Self.storageKey)
+        try? FileManager.default.createDirectory(at: AppConfig.supportDirectory, withIntermediateDirectories: true)
+        try? data.write(to: Self.fileURL, options: .atomic)
     }
 
     // MARK: Vorschau
