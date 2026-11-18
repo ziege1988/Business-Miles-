@@ -2,7 +2,7 @@
 import * as fmt from "./format.js";
 import {
   newTrip, emptyAddress, normalizeAddress, singleLine, isUsable, totalKm, amount, tripTitle,
-  yearSummaries, VEHICLE_TYPES,
+  yearSummaries, VEHICLE_TYPES, tripRate, timeRange,
 } from "./model.js";
 import { store } from "./store.js";
 import * as graph from "./graph.js";
@@ -64,6 +64,8 @@ function renderMain() {
   const s = currentSummary();
   const rate = store.settings.ratePerKm;
   const max = Math.max(1, ...s.months.map((m) => m.totalKm));
+  const sumAmount = (list) => list.reduce((x, t) => x + amount(t, rate), 0);
+  const yearAmount = s.months.reduce((x, m) => x + sumAmount(m.trips), 0);
   const active = s.months.filter((m) => m.trips.length).reverse();
 
   let html = banners();
@@ -72,7 +74,7 @@ function renderMain() {
       <div class="stat hl"><div class="l">Kilometer gesamt</div><div class="v">${fmt.km(s.totalKm)}</div></div>
       <div class="stat"><div class="l">Fahrten</div><div class="v">${s.tripCount}</div></div>
       <div class="stat"><div class="l">Ø pro Fahrt</div><div class="v">${s.tripCount ? fmt.km(s.totalKm / s.tripCount) : "–"}</div></div>
-      <div class="stat"><div class="l">Pauschale (${fmt.euro(rate)}/km)</div><div class="v">${fmt.euro(s.totalKm * rate)}</div></div>
+      <div class="stat"><div class="l">Fahrtkosten</div><div class="v">${fmt.euro(yearAmount)}</div></div>
     </div>`;
 
   if (!s.tripCount) {
@@ -87,7 +89,7 @@ function renderMain() {
       html += `<section class="card month">
         <div class="month-head"><h2>${fmt.MONTHS[m.month - 1]}</h2><span class="c">${fmt.tripCount(m.trips.length)}</span><span class="k">${fmt.km(m.totalKm)}</span></div>
         ${m.trips.map((t) => tripRow(t, rate)).join("")}
-        <div class="month-foot"><span>Summe ${fmt.MONTHS[m.month - 1]}</span><span>${fmt.km(m.totalKm)}</span><span class="e">${fmt.euro(m.totalKm * rate)}</span></div>
+        <div class="month-foot"><span>Summe ${fmt.MONTHS[m.month - 1]}</span><span>${fmt.km(m.totalKm)}</span><span class="e">${fmt.euro(sumAmount(m.trips))}</span></div>
       </section>`;
     }
   }
@@ -96,7 +98,7 @@ function renderMain() {
 
 function tripRow(t, rate) {
   const { d } = fmt.parseDay(t.date);
-  const purpose = [t.purpose, !t.startUsesHome && t.start.city ? `Start: ${t.start.city}` : ""].filter(Boolean).join(" · ");
+  const purpose = [timeRange(t), t.purpose, !t.startUsesHome && t.start.city ? `Start: ${t.start.city}` : ""].filter(Boolean).join(" · ");
   const kmCell = t.kmPending
     ? `<span class="badge">km folgen</span>`
     : `<b>${fmt.km(totalKm(t))}</b>`;
@@ -164,6 +166,12 @@ const parseKm = (v) => {
   return Number.isFinite(n) && n > 0 ? Math.round(n * 10) / 10 : 0;
 };
 const kmInput = (v) => (v ? fmt.num(v) : "");
+const fmtRate = (v) => (Number(v) || 0).toFixed(2).replace(".", ",");
+/** "0,35" → 0.35; leer/ungültig → Standard */
+const parseRate = (v, fallback) => {
+  const n = parseFloat(String(v || "").trim().replace(",", "."));
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 1000) / 1000 : fallback;
+};
 
 // ===========================================================================
 // Adressfeld mit PLZ → Ort und Straßenvorschlägen
@@ -286,7 +294,12 @@ function openEditor(mode, source) {
   const el = openSheet("#sheet-editor", `
     <div class="sheet-head"><button class="link" data-x="cancel">Abbrechen</button><h2>${editing ? "Fahrt bearbeiten" : "Neue Fahrt"}</h2><button class="link" data-x="save">Sichern</button></div>
     <div class="sheet-body">
-      <div class="group"><label>Datum</label><div class="fields"><div class="field"><input type="date" class="e-date" required></div></div></div>
+      <div class="group"><label>Datum</label><div class="fields">
+        <div class="field"><input type="date" class="e-date" required></div>
+        <div class="field"><span>Uhrzeiten angeben</span><label class="switch"><input type="checkbox" class="e-times"><i></i></label></div>
+        <div class="field e-time-row"><span>Abfahrt</span><input type="time" class="e-dep" style="text-align:right"></div>
+        <div class="field e-time-row"><span>Rückkehr</span><input type="time" class="e-ret-time" style="text-align:right"></div>
+      </div><p class="hint">Uhrzeiten sind optional – sinnvoll z. B. für den Verpflegungsmehraufwand (Abwesenheit über 8 Stunden).</p></div>
       <div class="group"><label>Kunde &amp; Anlass</label><div class="fields">
         <div class="field"><input class="e-customer" placeholder="Kunde / Geschäftspartner" autocomplete="off"></div>
         <div class="field"><input class="e-purpose" placeholder="Anlass (z. B. Fotoshooting, Besprechung)" autocomplete="off"></div>
@@ -311,7 +324,8 @@ function openEditor(mode, source) {
         <div class="field"><span>Hinfahrt</span><input class="num e-out" inputmode="decimal" placeholder="0,0" style="margin-left:auto"><span class="unit">km</span></div>
         <div class="field e-back-row"><span>Rückfahrt</span><input class="num e-back" inputmode="decimal" placeholder="0,0" style="margin-left:auto"><span class="unit">km</span></div>
         <div class="total-line"><span>Gesamt</span><span class="e-total"></span></div>
-        <div class="muted-line"><span class="e-rate"></span><span class="e-amount"></span></div>
+        <div class="field"><span>Kilometersatz</span><input class="num e-rate-in" inputmode="decimal" style="margin-left:auto"><span class="unit">€/km</span></div>
+        <div class="total-line"><span>Fahrtkosten</span><span class="e-amount"></span></div>
         <div class="calc e-calc"></div>
       </div>
       <p class="hint">Die Kilometer werden automatisch berechnet (OpenStreetMap, Auto) und können überschrieben werden. Offline erfasste Fahrten werden nachberechnet, sobald wieder Internet da ist.</p></div>
@@ -327,6 +341,10 @@ function openEditor(mode, source) {
   q(".e-return").checked = t.returnEnabled;
   q(".e-out").value = kmInput(t.outboundKm);
   q(".e-back").value = kmInput(t.returnKm);
+  q(".e-rate-in").value = fmtRate(tripRate(t, store.settings.ratePerKm));
+  q(".e-times").checked = Boolean(t.departureTime || t.returnTime);
+  q(".e-dep").value = t.departureTime || "08:00";
+  q(".e-ret-time").value = t.returnTime || "17:00";
 
   let startHome = t.startUsesHome;
   let returnHome = t.returnUsesHome;
@@ -356,10 +374,10 @@ function openEditor(mode, source) {
     q(".e-return-box").hidden = !ret;
     q(".e-back-row").hidden = !ret;
     const total = parseKm(q(".e-out").value) + (ret ? parseKm(q(".e-back").value) : 0);
-    const rate = store.settings.ratePerKm;
+    const rate = parseRate(q(".e-rate-in").value, store.settings.ratePerKm);
     q(".e-total").textContent = fmt.km(total);
-    q(".e-rate").textContent = `Pauschale (${fmt.euro(rate)}/km)`;
     q(".e-amount").textContent = fmt.euro(Math.round(total * rate * 100) / 100);
+    for (const row of el.querySelectorAll(".e-time-row")) row.hidden = !q(".e-times").checked;
   }
 
   function setCalc(state, msg = "") {
@@ -418,6 +436,10 @@ function openEditor(mode, source) {
     t.outboundKm = parseKm(q(".e-out").value);
     t.returnKm = ret ? parseKm(q(".e-back").value) : 0;
     t.kmPending = totalKm(t) <= 0;
+    t.ratePerKm = parseRate(q(".e-rate-in").value, store.settings.ratePerKm);
+    const times = q(".e-times").checked;
+    t.departureTime = times ? q(".e-dep").value : "";
+    t.returnTime = times ? q(".e-ret-time").value : "";
     t.source = "web";
     store.upsertTrip(t);
     selectedYear = Number(t.date.slice(0, 4));
@@ -460,6 +482,9 @@ function openEditor(mode, source) {
   });
   q(".e-return").addEventListener("change", scheduleCalc);
   q(".e-out").addEventListener("input", updateUI);
+  q(".e-rate-in").addEventListener("input", updateUI);
+  q(".e-rate-in").addEventListener("blur", () => { q(".e-rate-in").value = fmtRate(parseRate(q(".e-rate-in").value, store.settings.ratePerKm)); });
+  q(".e-times").addEventListener("change", updateUI);
   q(".e-back").addEventListener("input", updateUI);
   q(".e-out").addEventListener("blur", () => { q(".e-out").value = kmInput(parseKm(q(".e-out").value)); });
   q(".e-back").addEventListener("blur", () => { q(".e-back").value = kmInput(parseKm(q(".e-back").value)); });
@@ -491,7 +516,7 @@ function openSettings() {
         <div class="field"><input class="s-plate" placeholder="Kennzeichen" autocapitalize="characters"></div>
         <div class="field"><span>Fahrzeugart</span><select class="s-type" style="text-align:right">${Object.entries(VEHICLE_TYPES).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join("")}</select></div>
         <div class="field"><span>Kilometersatz</span><input class="num s-rate" inputmode="decimal" style="margin-left:auto"><span class="unit">€/km</span></div>
-      </div><p class="hint">Für betrieblich veranlasste Fahrten mit dem privaten Fahrzeug können pauschal 0,30 € (Pkw) bzw. 0,20 € (Motorrad/Motorroller) je gefahrenem Kilometer angesetzt werden. Im Zweifel mit der Steuerberatung abstimmen.</p></div>
+      </div><p class="hint">Der Kilometersatz ist frei einstellbar und gilt für neue Fahrten – bereits erfasste Fahrten behalten ihren Satz (in der jeweiligen Fahrt änderbar). Pauschal üblich: 0,30 € (Pkw) bzw. 0,20 € (Motorrad/Motorroller) je gefahrenem Kilometer. Im Zweifel mit der Steuerberatung abstimmen.</p></div>
       <div class="group"><label>OneDrive</label><div class="fields">
         <div class="field"><span>Datei</span><span class="unit" style="margin-left:auto">Business-Miles › business-miles.json</span></div>
         <div class="field"><span>Konto</span><span class="unit" style="margin-left:auto">${graph.isConfigured() ? esc(account?.username || "nicht angemeldet") : "nicht eingerichtet"}</span></div>
@@ -512,20 +537,23 @@ function openSettings() {
   q(".s-vehicle").value = s.vehicleName;
   q(".s-plate").value = s.licensePlate;
   q(".s-type").value = s.vehicleType;
-  q(".s-rate").value = s.ratePerKm.toFixed(2).replace(".", ",");
-  const syncRate = () => {
+  q(".s-rate").value = fmtRate(s.ratePerKm);
+  // Fahrzeugart = Schnellwahl für den Satz; eigener Wert → „Eigener Satz“
+  q(".s-type").addEventListener("change", () => {
     const preset = VEHICLE_TYPES[q(".s-type").value].rate;
-    q(".s-rate").disabled = preset !== null;
-    if (preset !== null) q(".s-rate").value = preset.toFixed(2).replace(".", ",");
-  };
-  q(".s-type").addEventListener("change", syncRate);
-  syncRate();
+    if (preset !== null) q(".s-rate").value = fmtRate(preset);
+  });
+  q(".s-rate").addEventListener("input", () => {
+    const v = parseRate(q(".s-rate").value, null);
+    const preset = VEHICLE_TYPES[q(".s-type").value].rate;
+    if (v !== null && preset !== null && v !== preset) q(".s-type").value = "custom";
+  });
 
   el.addEventListener("click", async (e) => {
     const x = e.target.closest("[data-x]")?.dataset.x;
     if (x === "cancel") closeSheet("#sheet-settings");
     if (x === "save") {
-      const rate = parseFloat(q(".s-rate").value.replace(",", "."));
+      const rate = parseRate(q(".s-rate").value, NaN);
       store.updateSettings({
         ...s,
         home: homeField.get(),
@@ -535,7 +563,7 @@ function openSettings() {
         vehicleName: q(".s-vehicle").value.trim(),
         licensePlate: q(".s-plate").value.trim(),
         vehicleType: q(".s-type").value,
-        ratePerKm: Number.isFinite(rate) && rate > 0 ? rate : 0.30,
+        ratePerKm: Number.isFinite(rate) ? rate : s.ratePerKm,
       });
       closeSheet("#sheet-settings");
       render();

@@ -31,6 +31,8 @@ und einem steuertauglichen Export.
 | Jahres-Kacheln | senkrecht rechts | waagerecht oben |
 | Monats- und Jahressummen, Diagramm, Pauschale | ✓ | ✓ |
 | Export Excel (.xlsx) und PDF | in Zielordner | Teilen / In Dateien sichern |
+| Kilometersatz frei einstellbar, je Fahrt gespeichert | ✓ | ✓ |
+| Optionale Uhrzeiten (Abfahrt/Rückkehr) | ✓ | ✓ |
 | Export als Bild für die Galerie | – | ✓ (in Fotos sichern) |
 | Widget | ✓ (klein + mittel) | – |
 | Offline erfassen, später automatisch abgleichen | ✓ | ✓ (Zwischenspeicher) |
@@ -44,84 +46,35 @@ Details: [`docs/DATENFORMAT.md`](docs/DATENFORMAT.md).
 
 ## Einrichtung
 
-### 1 · Mac-App (ca. 10 Minuten)
+👉 **Schritt-für-Schritt-Anleitung: [`docs/ANLEITUNG.md`](docs/ANLEITUNG.md)**
 
-Voraussetzungen: Mac mit **macOS 14** oder neuer, **Xcode** (kostenlos im App Store), OneDrive-App angemeldet.
+Kurzfassung:
 
-```bash
-brew install xcodegen            # einmalig (https://brew.sh)
-git clone https://github.com/ziege1988/Business-Miles-.git
-cd Business-Miles-
-```
+1. Repository öffentlich machen, *Settings → Pages → Source: GitHub Actions*, Pull Request mergen.
+2. In [entra.microsoft.com](https://entra.microsoft.com) eine App-Registrierung „Business Miles“ anlegen
+   (SPA, Umleitung `https://ziege1988.github.io/Business-Miles-/`, Berechtigung `Files.ReadWrite`)
+   und Client-ID + Mandanten-ID in [`web/js/config.js`](web/js/config.js) eintragen.
+3. Mac-App unter **Releases** als ZIP laden, in *Programme* ziehen, einmalig in
+   *Systemeinstellungen → Datenschutz & Sicherheit* „Dennoch öffnen“.
+4. iPhone: Safari → Web-App öffnen → *Teilen → Zum Home-Bildschirm* → Anmelden.
 
-1. Xcode öffnen → *Settings → Accounts* → mit deiner **normalen Apple-ID** anmelden (kostenlos).
-   Dort steht unter „Team“ dein *Personal Team* – die 10-stellige Team-ID findest du z. B. im
-   Schlüsselbund unter „Apple Development: …“ (Feld „Organisationseinheit“).
-2. In **`project.yml`** oben eintragen:
-   ```yaml
-   BUNDLE_ID_PREFIX: de.czfotografie     # beliebige eigene Kennung
-   DEVELOPMENT_TEAM: ABCDE12345          # deine Team-ID
-   ```
-3. Projekt erzeugen und starten:
-   ```bash
-   xcodegen generate
-   open BusinessMiles.xcodeproj         # dann ⌘R
-   ```
-   Falls Xcode beim Signieren meckert: bei beiden Targets (*BusinessMiles*, *BusinessMilesWidget*)
-   unter *Signing & Capabilities* als Team dein *Personal Team* auswählen.
-4. Beim ersten Start oben **„Ordner wählen …“** → in der Seitenleiste *OneDrive* → Ordner **`Business-Miles`** auswählen.
-5. Empfehlung: Im Finder Rechtsklick auf `Business-Miles` → **„Immer auf diesem Gerät behalten“**.
-6. Damit die App dauerhaft im Programme-Ordner liegt: *Product → Archive → Distribute App → Copy App*
-   und `Business Miles.app` nach *Programme* ziehen.
-7. Widget: Mitteilungszentrale öffnen → „Widgets bearbeiten“ → *Business Miles*.
-
-### 2 · Web-App veröffentlichen (GitHub Pages, einmalig)
-
-1. **Repository öffentlich machen:** GitHub → *Settings → General → Danger Zone → Change visibility → Public*.
-   Öffentlich ist nur der Programmcode – deine Fahrten liegen ausschließlich in deinem OneDrive.
-   (GitHub Pages ist im kostenlosen Tarif nur für öffentliche Repositories verfügbar.)
-2. *Settings → Pages → Build and deployment → Source:* **GitHub Actions**.
-3. Den Stand auf den Branch `main` bringen (Pull Request zusammenführen). Der Workflow
-   „Web-App veröffentlichen“ läuft dann automatisch.
-4. Adresse der Web-App: **https://ziege1988.github.io/Business-Miles-/**
-
-### 3 · Microsoft-Anmeldung einrichten (ca. 5 Minuten, kostenlos)
-
-Damit die Web-App auf dein OneDrive zugreifen darf, wird sie einmal in deinem Microsoft-365-Konto registriert:
-
-1. [entra.microsoft.com](https://entra.microsoft.com) mit deinem Microsoft-365-Konto öffnen.
-2. *Identität → Anwendungen → App-Registrierungen →* **Neue Registrierung**
-   - Name: `Business Miles`
-   - Unterstützte Kontotypen: **Nur Konten in diesem Organisationsverzeichnis (Einzelner Mandant)**
-   - Umleitungs-URI: Plattform **Single-Page-Anwendung (SPA)**, Adresse
-     `https://ziege1988.github.io/Business-Miles-/` (genau so, mit `/` am Ende)
-   - → **Registrieren**
-3. Auf der Übersichtsseite zwei Werte notieren:
-   **Anwendungs-ID (Client)** und **Verzeichnis-ID (Mandant)**.
-4. *API-Berechtigungen → Berechtigung hinzufügen → Microsoft Graph → Delegierte Berechtigungen →*
-   **Files.ReadWrite** hinzufügen. Danach **„Administratorzustimmung für … erteilen“** klicken.
-5. Die beiden Werte in [`web/js/config.js`](web/js/config.js) bei `clientId` und `tenantId` eintragen
-   (oder Claude schicken). Beide Werte sind nicht geheim.
-
-### 4 · Auf dem iPhone
-
-1. In **Safari** `https://ziege1988.github.io/Business-Miles-/` öffnen.
-2. *Teilen* → **„Zum Home-Bildschirm“**.
-3. App vom Home-Bildschirm starten → **Anmelden** → mit dem Microsoft-365-Konto anmelden.
-4. Fertig – der grüne Punkt oben zeigt „Mit OneDrive synchronisiert“.
-
-> Microsoft verlangt bei Web-Apps etwa einmal täglich eine kurze Bestätigung der Anmeldung;
-> die App leitet dann automatisch kurz zur Microsoft-Seite weiter. Fahrten bleiben dabei erhalten.
+**Kein Apple-Developer-Account, keine Team-ID:** Die Mac-App wird von GitHub automatisch auf einem
+Mac gebaut (Workflow `.github/workflows/mac-app.yml`) und „ad hoc“ signiert. Selbst bauen ist
+optional: `brew install xcodegen && xcodegen generate && open BusinessMiles.xcodeproj` → ⌘R.
 
 ---
 
 ## Hinweise zur Steuer
 
-- Der Export enthält je Fahrt: **Datum, Kunde/Geschäftspartner, Anlass, Start-, Ziel- und Rückfahrtadresse,
-  Hin-/Rück-/Gesamt-km und Betrag**, dazu Monats- und Gesamtsummen, Name, Anschrift, Steuernummer,
-  Fahrzeug, Kennzeichen, km-Satz sowie Felder für Ort, Datum und Unterschrift.
-- Voreingestellt: **0,30 €/km (Pkw)** bzw. **0,20 €/km (Motorrad/Motorroller)** für betrieblich
-  veranlasste Fahrten mit dem Privatfahrzeug. Der Satz ist änderbar.
+- Der Export enthält je Fahrt: **Datum, Abfahrt, Rückkehr, Kunde/Geschäftspartner, Anlass,
+  Start-, Ziel- und Rückfahrtadresse, Hin-/Rück-/Gesamt-km, €/km, Betrag und Bemerkung**, dazu
+  Monats- und Gesamtsummen, Name, Firma, Anschrift, Steuernummer, Fahrzeug (Privatfahrzeug,
+  Bezeichnung, Kennzeichen), Art der Fahrten, Zeitraum sowie Felder für Ort, Datum und Unterschrift.
+- Der **Kilometersatz ist frei einstellbar** (Einstellungen) und wird **je Fahrt gespeichert** –
+  ändert sich der Satz, behalten frühere Fahrten ihren Satz; einzelne Fahrten können abweichen.
+  Schnellwahl: 0,30 €/km (Pkw) bzw. 0,20 €/km (Motorrad/Motorroller).
+- Optional je Fahrt: **Abfahrts- und Rückkehrzeit** (z. B. für den Verpflegungsmehraufwand bei mehr
+  als 8 Stunden Abwesenheit) und eine **Bemerkung** (z. B. Umweg und Grund).
 - Die Startadresse wird beim Speichern **in jede Fahrt kopiert** – ein späterer Umzug verändert alte Einträge nicht.
 - Kilometer stammen aus der Routenberechnung (Mac: Apple Karten, iPhone: OpenStreetMap) und können
   sich zwischen den Geräten leicht unterscheiden. Bei Umwegen bitte manuell anpassen.

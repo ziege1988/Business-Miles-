@@ -40,6 +40,9 @@ dieselbe Datei. Damit gleichzeitige Änderungen nicht verloren gehen, wird **nie
       "returnTo": { "street": "…", "postalCode": "…", "city": "…" },
       "outboundKm": 42.1,
       "returnKm": 41.9,
+      "ratePerKm": 0.30,
+      "departureTime": "08:30",
+      "returnTime": "17:45",
       "kmPending": false,
       "source": "web",
       "createdAt": "…",
@@ -53,4 +56,11 @@ dieselbe Datei. Damit gleichzeitige Änderungen nicht verloren gehen, wird **nie
 `kmPending: true` bedeutet: Die Fahrt wurde offline erfasst und die Kilometer werden berechnet,
 sobald ein Gerät wieder online ist (Mac oder iPhone, je nachdem, welches zuerst).
 
-`vehicleType`: `car` (0,30 €/km), `motorcycle` (0,20 €/km) oder `custom` (eigener `ratePerKm`).
+`ratePerKm` je Fahrt: der beim Speichern gültige Kilometersatz. Ändert sich der Satz in den
+Einstellungen, behalten bereits erfasste Fahrten ihren Satz. Fehlt das Feld (`null`), gilt der Satz
+aus den Einstellungen.
+
+`departureTime` / `returnTime`: optionale Uhrzeiten `HH:MM` (leer = nicht angegeben).
+
+`vehicleType`: `car`, `motorcycle` oder `custom` – nur eine Schnellwahl für `settings.ratePerKm`,
+der Satz selbst ist frei einstellbar.

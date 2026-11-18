@@ -1,6 +1,6 @@
 // Export: Excel (.xlsx), PDF (A4 quer) und Bilder (PNG je Seite) – gleicher Aufbau wie in der Mac-App.
 import * as fmt from "./format.js";
-import { singleLine, totalKm, amount } from "./model.js";
+import { singleLine, totalKm, amount, tripRate, timeRange } from "./model.js";
 
 // --- Berichtsdaten ---------------------------------------------------------
 
@@ -9,7 +9,8 @@ export function buildReport(summary, month, settings) {
   const groups = summary.months
     .filter((m) => m.trips.length && (!month || m.month === month))
     .map((m) => {
-      const rows = [...m.trips].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)).map((t) => ({
+      const key = (t) => `${t.date} ${t.departureTime || ""}`;
+      const rows = [...m.trips].sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0)).map((t) => ({
         date: t.date,
         customer: t.customer,
         purpose: t.purpose,
@@ -20,7 +21,12 @@ export function buildReport(summary, month, settings) {
         outboundKm: t.outboundKm,
         returnKm: t.returnEnabled ? t.returnKm : 0,
         totalKm: totalKm(t),
+        rate: tripRate(t, rate),
         amount: amount(t, rate),
+        note: t.note,
+        departureTime: t.departureTime,
+        returnTime: t.returnTime,
+        timeRange: timeRange(t),
         kmPending: t.kmPending,
       }));
       const sum = (k) => rows.reduce((s, r) => s + r[k], 0);
@@ -28,8 +34,15 @@ export function buildReport(summary, month, settings) {
     });
   const sum = (k) => groups.reduce((s, g) => s + g[k], 0);
   const periodLabel = month ? `${fmt.MONTHS[month - 1]} ${summary.year}` : `Jahr ${summary.year}`;
-  const vehicle = [settings.vehicleName, settings.licensePlate].filter(Boolean).join(" · ");
+  const vehicleType = settings.vehicleType === "motorcycle" ? "Privates Motorrad / Motorroller" : "Privatfahrzeug";
+  const vehicle = [vehicleType, settings.vehicleName, settings.licensePlate].filter(Boolean).join(" · ");
+  const allRows = groups.flatMap((g) => g.rows);
+  const mixedRates = new Set(allRows.map((r) => r.rate)).size > 1;
+  const rateLabel = mixedRates
+    ? `je Fahrt angegeben (Standard ${fmt.euro(rate)} je km)`
+    : `${fmt.euro(allRows[0]?.rate ?? rate)} je km`;
   return {
+    mixedRates, rateLabel, hasPendingKm: allRows.some((r) => r.kmPending),
     year: summary.year, month, periodLabel,
     title: `Fahrtenaufstellung ${periodLabel}`,
     header: {
@@ -130,10 +143,12 @@ function excelSerial(day) {
 
 const S = { normal: 0, title: 2, header: 3, date: 4, km: 5, euro: 6, totalKm: 7, totalEuro: 8, wrap: 9,
   totalLabel: 10, monthHeader: 11, grandKm: 12, grandEuro: 13, grandLabel: 14, muted: 15 };
-const COLS = "ABCDEFGHIJ".split("");
-const WIDTHS = [12, 24, 24, 32, 32, 32, 11, 11, 11, 13];
-const HEADERS = ["Datum", "Kunde / Geschäftspartner", "Anlass / Zweck", "Startadresse", "Zieladresse",
-  "Rückfahrt nach", "Hinfahrt km", "Rückfahrt km", "Gesamt km", "Betrag €"];
+// A Datum · B Abfahrt · C Rückkehr · D Kunde · E Anlass · F Start · G Ziel · H Rückfahrt nach
+// I Hin km · J Rück km · K Gesamt km · L €/km · M Betrag · N Bemerkung   (identisch zur Mac-App)
+const COLS = "ABCDEFGHIJKLMN".split("");
+const WIDTHS = [11, 8, 9, 22, 22, 28, 28, 28, 10, 11, 10, 9, 12, 24];
+const HEADERS = ["Datum", "Abfahrt", "Rückkehr", "Kunde / Geschäftspartner", "Anlass / Zweck", "Startadresse", "Zieladresse",
+  "Rückfahrt nach", "Hinfahrt km", "Rückfahrt km", "Gesamt km", "€ / km", "Betrag €", "Bemerkung"];
 
 const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="3"><numFmt numFmtId="164" formatCode="#,##0.0"/><numFmt numFmtId="165" formatCode="#,##0.00\\ &quot;€&quot;"/><numFmt numFmtId="166" formatCode="dd\\.mm\\.yyyy"/></numFmts><fonts count="5"><font><sz val="11"/><color rgb="FF1C2B3A"/><name val="Calibri"/><family val="2"/></font><font><b/><sz val="11"/><color rgb="FF1C2B3A"/><name val="Calibri"/><family val="2"/></font><font><b/><sz val="16"/><color rgb="FF165F8A"/><name val="Calibri"/><family val="2"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/><family val="2"/></font><font><i/><sz val="9"/><color rgb="FF5B6B7A"/><name val="Calibri"/><family val="2"/></font></fonts><fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF0F8B8D"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE3F3F3"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFD2EAEA"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="3"><border><left/><right/><top/><bottom/><diagonal/></border><border><left/><right/><top/><bottom style="thin"><color rgb="FFE2E7EC"/></bottom><diagonal/></border><border><left/><right/><top style="thin"><color rgb="FF1C2B3A"/></top><bottom style="double"><color rgb="FF1C2B3A"/></bottom><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="16"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="0" fontId="3" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf><xf numFmtId="166" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="top"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment vertical="top"/></xf><xf numFmtId="165" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment vertical="top"/></xf><xf numFmtId="164" fontId="1" fillId="3" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1"/><xf numFmtId="165" fontId="1" fillId="3" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1"/><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf><xf numFmtId="0" fontId="1" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="0" fontId="1" fillId="4" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="164" fontId="1" fillId="0" borderId="2" xfId="0" applyNumberFormat="1" applyFont="1" applyBorder="1"/><xf numFmtId="165" fontId="1" fillId="0" borderId="2" xfId="0" applyNumberFormat="1" applyFont="1" applyBorder="1"/><xf numFmtId="0" fontId="1" fillId="0" borderId="2" xfId="0" applyFont="1" applyBorder="1"/><xf numFmtId="0" fontId="4" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
@@ -159,8 +174,9 @@ export function makeXlsx(report) {
   if (h.company) info.push(`Firma: ${h.company}`);
   if (h.address) info.push(`Anschrift / Startadresse: ${h.address}`);
   if (h.taxNumber) info.push(`Steuernummer: ${h.taxNumber}`);
-  if (h.vehicle) info.push(`Fahrzeug: ${h.vehicle}`);
-  info.push(`Kilometersatz: ${fmt.euro(h.rate)} je km`);
+  info.push(`Fahrzeug: ${h.vehicle}`);
+  info.push("Art der Fahrten: betrieblich veranlasste Fahrten (Kundentermine)");
+  info.push(`Kilometersatz: ${report.rateLabel}`);
   info.push(`Zeitraum: ${report.periodLabel}`);
   for (const line of info) addRow([text(0, line, S.normal)]);
   addRow([]);
@@ -172,28 +188,35 @@ export function makeXlsx(report) {
     addRow(COLS.map((_, c) => (c === 0 ? text(0, `${fmt.MONTHS[g.month - 1]} ${report.year}`, S.monthHeader) : empty(c, S.monthHeader))));
     const first = r + 1;
     for (const row of g.rows) {
+      const n = r + 1;
+      const remark = row.kmPending ? ["km noch nicht berechnet", row.note].filter(Boolean).join(" · ") : row.note;
       addRow([
         number(0, excelSerial(row.date), S.date),
-        text(1, row.customer, S.wrap),
-        text(2, row.purpose, S.wrap),
-        text(3, row.start, S.wrap),
-        text(4, row.destination, S.wrap),
-        text(5, row.returnEnabled ? row.returnTo : "– (einfache Fahrt)", S.wrap),
-        number(6, row.outboundKm, S.km),
-        number(7, row.returnKm, S.km),
-        formula(8, `G${r + 1}+H${r + 1}`, row.totalKm, S.km),
-        formula(9, `ROUND(I${r + 1}*${n4(h.rate)},2)`, row.amount, S.euro),
+        text(1, row.departureTime, S.wrap),
+        text(2, row.returnTime, S.wrap),
+        text(3, row.customer, S.wrap),
+        text(4, row.purpose, S.wrap),
+        text(5, row.start, S.wrap),
+        text(6, row.destination, S.wrap),
+        text(7, row.returnEnabled ? row.returnTo : "– (einfache Fahrt)", S.wrap),
+        number(8, row.outboundKm, S.km),
+        number(9, row.returnKm, S.km),
+        formula(10, `I${n}+J${n}`, row.totalKm, S.km),
+        number(11, row.rate, S.euro),
+        formula(12, `ROUND(K${n}*L${n},2)`, row.amount, S.euro),
+        text(13, remark, S.wrap),
       ]);
     }
     const last = r;
     const label = `Summe ${fmt.MONTHS[g.month - 1]}`;
     addRow([
-      text(0, label, S.totalLabel), empty(1, S.totalLabel), empty(2, S.totalLabel), empty(3, S.totalLabel),
-      empty(4, S.totalLabel), empty(5, S.totalLabel),
-      formula(6, `SUM(G${first}:G${last})`, g.outboundKm, S.totalKm),
-      formula(7, `SUM(H${first}:H${last})`, g.returnKm, S.totalKm),
-      formula(8, `SUM(I${first}:I${last})`, g.totalKm, S.totalKm),
-      formula(9, `SUM(J${first}:J${last})`, g.amount, S.totalEuro),
+      text(0, label, S.totalLabel), ...[1, 2, 3, 4, 5, 6, 7].map((c) => empty(c, S.totalLabel)),
+      formula(8, `SUM(I${first}:I${last})`, g.outboundKm, S.totalKm),
+      formula(9, `SUM(J${first}:J${last})`, g.returnKm, S.totalKm),
+      formula(10, `SUM(K${first}:K${last})`, g.totalKm, S.totalKm),
+      empty(11, S.totalLabel),
+      formula(12, `SUM(M${first}:M${last})`, g.amount, S.totalEuro),
+      empty(13, S.totalLabel),
     ]);
     subtotalRows.push(r);
     addRow([]);
@@ -201,20 +224,23 @@ export function makeXlsx(report) {
   const sumOf = (c) => (subtotalRows.length ? subtotalRows.map((n) => `${c}${n}`).join("+") : "0");
   addRow([
     text(0, `Gesamt ${report.periodLabel} (${fmt.tripCount(report.tripCount)})`, S.grandLabel),
-    empty(1, S.grandLabel), empty(2, S.grandLabel), empty(3, S.grandLabel), empty(4, S.grandLabel), empty(5, S.grandLabel),
-    formula(6, sumOf("G"), report.outboundKm, S.grandKm),
-    formula(7, sumOf("H"), report.returnKm, S.grandKm),
-    formula(8, sumOf("I"), report.totalKm, S.grandKm),
-    formula(9, sumOf("J"), report.amount, S.grandEuro),
+    ...[1, 2, 3, 4, 5, 6, 7].map((c) => empty(c, S.grandLabel)),
+    formula(8, sumOf("I"), report.outboundKm, S.grandKm),
+    formula(9, sumOf("J"), report.returnKm, S.grandKm),
+    formula(10, sumOf("K"), report.totalKm, S.grandKm),
+    empty(11, S.grandLabel),
+    formula(12, sumOf("M"), report.amount, S.grandEuro),
+    empty(13, S.grandLabel),
   ], 22);
   addRow([]);
-  addRow([text(0, `Erstellt am ${fmt.date(report.createdAt)} mit Business Miles. Kilometer laut Routenberechnung bzw. manueller Angabe.`, S.muted)]);
+  if (report.hasPendingKm) addRow([text(0, "Hinweis: Einige Fahrten enthalten noch keine berechneten Kilometer (Spalte „Bemerkung“).", S.muted)]);
+  addRow([text(0, `Erstellt am ${fmt.date(report.createdAt)} mit Business Miles. Kilometer laut Routenberechnung bzw. manueller Angabe; Startadresse je Fahrt wie zum Zeitpunkt der Erfassung.`, S.muted)]);
   addRow([]);
   addRow([text(0, "Ort, Datum: ______________________________        Unterschrift: ______________________________", S.normal)]);
 
   const cols = WIDTHS.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join("");
   const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="A1:J${Math.max(r, 1)}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="${headerRow}" topLeftCell="A${headerRow + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols>${cols}</cols><sheetData>${rows.join("")}</sheetData><pageMargins left="0.4" right="0.4" top="0.6" bottom="0.6" header="0.3" footer="0.3"/><pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/><headerFooter><oddFooter>&amp;L${x(report.title)}&amp;RSeite &amp;P von &amp;N</oddFooter></headerFooter></worksheet>`;
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="A1:N${Math.max(r, 1)}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="${headerRow}" topLeftCell="A${headerRow + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols>${cols}</cols><sheetData>${rows.join("")}</sheetData><pageMargins left="0.3" right="0.3" top="0.5" bottom="0.5" header="0.3" footer="0.3"/><pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/><headerFooter><oddFooter>&amp;L${x(report.title)}&amp;RSeite &amp;P von &amp;N</oddFooter></headerFooter></worksheet>`;
 
   const sheetName = (report.month ? `${fmt.MONTHS[report.month - 1]} ${report.year}` : `Fahrten ${report.year}`).slice(0, 31);
   return zip([
@@ -253,7 +279,7 @@ export function makePdf(report) {
   doc.setTextColor(...DEEP); doc.setFontSize(18);
   doc.text(report.title, M, M + 28);
   doc.setTextColor(...MUTED); doc.setFont("helvetica", "normal"); doc.setFontSize(8.5);
-  doc.text(`Nachweis betrieblich veranlasster Fahrten · Kilometersatz ${fmt.euro(h.rate)} je km`, M, M + 42);
+  doc.text(`Nachweis betrieblich veranlasster Fahrten · Kilometersatz ${report.rateLabel}`, M, M + 42);
   const info = [["Name", h.name], ["Firma", h.company], ["Anschrift", h.address], ["Steuernummer", h.taxNumber], ["Fahrzeug", h.vehicle]]
     .filter(([, v]) => v);
   let iy = M + 4;
@@ -269,8 +295,15 @@ export function makePdf(report) {
       styles: { fillColor: SOFT, fontStyle: "bold", textColor: INK } }]);
     for (const r of g.rows) {
       const dest = r.returnEnabled && r.returnTo && r.returnTo !== r.start ? `${r.destination}\nzurück: ${r.returnTo}` : r.destination;
-      body.push([fmt.date(r.date), r.customer, r.purpose, r.start, dest,
-        fmt.num(r.outboundKm), r.returnEnabled ? fmt.num(r.returnKm) : "–", fmt.num(r.totalKm), fmt.euro(r.amount)]);
+      body.push([
+        r.timeRange ? `${fmt.date(r.date)}\n${r.timeRange}` : fmt.date(r.date),
+        r.customer,
+        [r.purpose, r.note].filter(Boolean).join("\n"),
+        r.start, dest,
+        fmt.num(r.outboundKm), r.returnEnabled ? fmt.num(r.returnKm) : "–",
+        r.kmPending ? "folgt" : fmt.num(r.totalKm),
+        report.mixedRates ? `${fmt.euro(r.amount)}\n${fmt.euro(r.rate)}/km` : fmt.euro(r.amount),
+      ]);
     }
     const tot = { fillColor: [210, 234, 234], fontStyle: "bold" };
     body.push([{ content: `Summe ${fmt.MONTHS[g.month - 1]}`, colSpan: 5, styles: tot },

@@ -70,7 +70,7 @@ export function newTrip() {
     destination: emptyAddress(),
     startUsesHome: true, start: emptyAddress(),
     returnEnabled: true, returnUsesHome: true, returnTo: emptyAddress(),
-    outboundKm: 0, returnKm: 0, kmPending: false,
+    outboundKm: 0, returnKm: 0, ratePerKm: null, departureTime: "", returnTime: "", kmPending: false,
     source: "web", createdAt: t, updatedAt: t, deleted: false,
   };
 }
@@ -100,6 +100,9 @@ export function normalizeTrip(t) {
     returnTo: normalizeAddress(t.returnTo),
     outboundKm: Number(t.outboundKm) || 0,
     returnKm: Number(t.returnKm) || 0,
+    ratePerKm: typeof t.ratePerKm === "number" && t.ratePerKm >= 0 ? t.ratePerKm : null,
+    departureTime: /^\d{2}:\d{2}$/.test(t.departureTime || "") ? t.departureTime : "",
+    returnTime: /^\d{2}:\d{2}$/.test(t.returnTime || "") ? t.returnTime : "",
     kmPending: t.kmPending === true,
     source: String(t.source || ""),
     createdAt: String(t.createdAt || n.createdAt),
@@ -150,7 +153,12 @@ export function sameContent(a, b) {
 // --- Berechnungen ---------------------------------------------------------
 
 export const totalKm = (t) => (Number(t.outboundKm) || 0) + (t.returnEnabled ? Number(t.returnKm) || 0 : 0);
-export const amount = (t, rate) => Math.round(totalKm(t) * rate * 100) / 100;
+/** Wirksamer km-Satz: eigener Satz der Fahrt, sonst der aus den Einstellungen. */
+export const tripRate = (t, defaultRate) => (typeof t.ratePerKm === "number" ? t.ratePerKm : defaultRate);
+export const amount = (t, defaultRate) => Math.round(totalKm(t) * tripRate(t, defaultRate) * 100) / 100;
+export const timeRange = (t) =>
+  t.departureTime && t.returnTime ? `${t.departureTime}–${t.returnTime}`
+    : t.departureTime ? `ab ${t.departureTime}` : t.returnTime ? `bis ${t.returnTime}` : "";
 export const tripTitle = (t) => t.customer.trim() || t.destination.city || singleLine(t.destination) || "Fahrt";
 
 /** Gruppiert sichtbare Fahrten nach Jahr → Monat. Das aktuelle Jahr ist immer enthalten. */
