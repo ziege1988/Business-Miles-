@@ -45,11 +45,11 @@ enum ReportLayout {
     static let totalHeight: CGFloat = 22
 
     // Spaltenbreiten – Summe = Seitenbreite − 2 × Rand (≈ 778 pt)
-    static let colDate: CGFloat = 58
+    static let colDate: CGFloat = 66
     static let colCustomer: CGFloat = 118
     static let colPurpose: CGFloat = 104
     static let colStart: CGFloat = 146
-    static let colDestination: CGFloat = 145
+    static let colDestination: CGFloat = 137
     static let colKm: CGFloat = 50
     static let colTotal: CGFloat = 54
     static let colAmount: CGFloat = 52

@@ -27,22 +27,23 @@ enum ScreenshotMode {
         try? await Task.sleep(for: .seconds(2.5))
         captureMainWindow(to: dir, name: "mac-1-uebersicht")
 
-        // Neue Fahrt (Sheet)
-        router.newTripRequested = true
+        // Einstellungen (eigenes Fenster) – vor dem Editor, damit kein Sheet offen ist
+        let before = Set(NSApp.windows.map { ObjectIdentifier($0) })
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
         try? await Task.sleep(for: .seconds(2))
-        if let main = mainWindow, let sheet = main.attachedSheet {
-            capture(sheet, to: dir.appendingPathComponent("mac-2-neue-fahrt.png"))
-            main.endSheet(sheet)
+        if let settings = NSApp.windows.first(where: { $0.isVisible && !before.contains(ObjectIdentifier($0)) })
+            ?? NSApp.windows.first(where: { $0.isVisible && $0.title.contains("Einstellungen") }) {
+            capture(settings, to: dir.appendingPathComponent("mac-3-einstellungen.png"))
+            settings.close()
         }
         try? await Task.sleep(for: .seconds(1))
 
-        // Einstellungen
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        // Neue Fahrt (Sheet am Hauptfenster)
+        mainWindow?.makeKeyAndOrderFront(nil)
+        router.newTripRequested = true
         try? await Task.sleep(for: .seconds(2))
-        if let settings = NSApp.windows.first(where: { $0.isVisible && $0 !== mainWindow && $0.title.contains("Einstellungen") })
-            ?? NSApp.windows.first(where: { $0.isVisible && $0 !== mainWindow && $0.attachedSheet == nil && $0.frame.width > 300 }) {
-            capture(settings, to: dir.appendingPathComponent("mac-3-einstellungen.png"))
-            settings.close()
+        if let sheet = mainWindow?.attachedSheet {
+            capture(sheet, to: dir.appendingPathComponent("mac-2-neue-fahrt.png"))
         }
 
         // Widget (klein + mittel)
@@ -84,7 +85,7 @@ enum ScreenshotMode {
 
     @MainActor
     private static func renderWidget(_ snapshot: WidgetSnapshot, family: WidgetFamily, size: CGSize, to url: URL) {
-        let content = MilesWidgetContent(entry: MilesEntry(date: .now, snapshot: snapshot), family: family)
+        let content = MilesWidgetContent(entry: MilesEntry(date: .now, snapshot: snapshot), family: family, interactive: false)
             .padding(16)
             .frame(width: size.width, height: size.height)
             .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color.white))

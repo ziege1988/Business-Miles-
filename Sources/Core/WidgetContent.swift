@@ -10,6 +10,17 @@ struct MilesEntry: TimelineEntry {
 struct MilesWidgetContent: View {
     let entry: MilesEntry
     let family: WidgetFamily
+    /// false = als Bild zeichnen (Vorschaubild), dort kann kein Link dargestellt werden
+    var interactive: Bool = true
+
+    private var newTripLabel: some View {
+        Label("Neue Fahrt", systemImage: "plus")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(Color.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 7)
+            .background(Capsule().fill(Theme.accentGradient))
+    }
 
     private var month: WidgetSnapshot.Period { entry.snapshot.month(containing: entry.date) }
     private var year: WidgetSnapshot.Period { entry.snapshot.year(containing: entry.date) }
@@ -110,13 +121,10 @@ struct MilesWidgetContent: View {
                 .padding(10)
                 .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.background))
 
-                Link(destination: AppConfig.newTripURL) {
-                    Label("Neue Fahrt", systemImage: "plus")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 7)
-                        .background(Capsule().fill(Theme.accentGradient))
+                if interactive {
+                    Link(destination: AppConfig.newTripURL) { newTripLabel }
+                } else {
+                    newTripLabel
                 }
             }
             .frame(maxWidth: .infinity)
