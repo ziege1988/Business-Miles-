@@ -1,90 +1,143 @@
 import Foundation
-import SwiftData
 
-/// Eine Fahrt zum Kunden.
-/// Hinweis CloudKit: Alle Attribute brauchen Standardwerte, keine `@Attribute(.unique)`.
-@Model
-final class Trip {
-    var id: UUID = UUID()
-    var date: Date = Date()
+/// Zeitstempel im Dateiformat: ISO 8601, UTC, Millisekunden.
+enum ISOTime {
+    private static let withFraction: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
 
-    /// Kunde / Geschäftspartner
+    private static let plain: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
+    /// Aktuelle Zeit, auf Millisekunden gerundet (wie im Dateiformat).
+    static var now: Date {
+        Date(timeIntervalSince1970: (Date().timeIntervalSince1970 * 1000).rounded() / 1000)
+    }
+
+    static func string(_ date: Date) -> String { withFraction.string(from: date) }
+
+    static func date(_ string: String?) -> Date? {
+        guard let string else { return nil }
+        return withFraction.date(from: string) ?? plain.date(from: string)
+    }
+}
+
+/// Kalendertag "2026-11-18" ↔ Date (lokale Zeitzone, Mitternacht).
+enum DayString {
+    static func string(_ date: Date) -> String {
+        let c = Fmt.calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", c.year ?? 1970, c.month ?? 1, c.day ?? 1)
+    }
+
+    static func date(_ string: String) -> Date? {
+        let parts = string.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3 else { return nil }
+        return Fmt.calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
+    }
+}
+
+/// Eine Fahrt zum Kunden (Feldnamen = Dateiformat, siehe docs/DATENFORMAT.md).
+struct Trip: Identifiable, Hashable {
+    /// UUID als Zeichenkette – Schreibweise wird unverändert übernommen (Web-App nutzt Kleinbuchstaben).
+    var id: String = UUID().uuidString
+    var day: String = DayString.string(Date())
+
     var customer: String = ""
-    /// Anlass / Zweck der Fahrt
     var purpose: String = ""
     var note: String = ""
 
-    // Ziel
-    var destStreet: String = ""
-    var destPostalCode: String = ""
-    var destCity: String = ""
-    var destLatitude: Double?
-    var destLongitude: Double?
-
-    // Start (bei `startUsesHome` eine Momentaufnahme der hinterlegten Startadresse)
+    var destination = AddressValue()
     var startUsesHome: Bool = true
-    var startStreet: String = ""
-    var startPostalCode: String = ""
-    var startCity: String = ""
-
-    // Rückfahrt
+    var start = AddressValue()
     var returnEnabled: Bool = true
     var returnUsesHome: Bool = true
-    var returnStreet: String = ""
-    var returnPostalCode: String = ""
-    var returnCity: String = ""
+    var returnTarget = AddressValue()
 
-    // Strecke
     var outboundKm: Double = 0
     var returnKm: Double = 0
+    /// Offline erfasst – km werden nachberechnet.
+    var kmPending: Bool = false
 
-    var createdAt: Date = Date()
-    var updatedAt: Date = Date()
-
-    init() {}
+    var source: String = "mac"
+    var createdAt: Date = ISOTime.now
+    var updatedAt: Date = ISOTime.now
+    var deleted: Bool = false
 
     // MARK: Abgeleitete Werte
 
+    var date: Date {
+        get { DayString.date(day) ?? Date() }
+        set { day = DayString.string(newValue) }
+    }
+
     var totalKm: Double { outboundKm + (returnEnabled ? returnKm : 0) }
 
-    var destination: AddressValue {
-        get {
-            AddressValue(street: destStreet, postalCode: destPostalCode, city: destCity,
-                         latitude: destLatitude, longitude: destLongitude,
-                         coordinateKey: destLatitude == nil ? nil
-                            : AddressValue(street: destStreet, postalCode: destPostalCode, city: destCity).singleLine)
-        }
-        set {
-            destStreet = newValue.street
-            destPostalCode = newValue.postalCode
-            destCity = newValue.city
-            let valid = newValue.validCoordinate
-            destLatitude = valid?.latitude
-            destLongitude = valid?.longitude
-        }
-    }
-
-    var start: AddressValue {
-        get { AddressValue(street: startStreet, postalCode: startPostalCode, city: startCity) }
-        set { startStreet = newValue.street; startPostalCode = newValue.postalCode; startCity = newValue.city }
-    }
-
-    var returnTarget: AddressValue {
-        get { AddressValue(street: returnStreet, postalCode: returnPostalCode, city: returnCity) }
-        set { returnStreet = newValue.street; returnPostalCode = newValue.postalCode; returnCity = newValue.city }
-    }
-
-    /// Überschrift in Listen: Kunde, sonst Ort.
     var title: String {
         let c = customer.trimmingCharacters(in: .whitespaces)
         if !c.isEmpty { return c }
-        return destCity.isEmpty ? destination.singleLine : destCity
+        return destination.city.isEmpty ? destination.singleLine : destination.city
     }
 
-    var routeDescription: String {
-        if !returnEnabled { return "Einfache Fahrt" }
-        return returnUsesHome && startUsesHome ? "Hin & zurück" : "Hin & Rückfahrt"
-    }
+    var routeDescription: String { returnEnabled ? "Hin & zurück" : "Einfache Fahrt" }
 
     func amount(rate: Double) -> Double { (totalKm * rate * 100).rounded() / 100 }
+}
+
+extension Trip: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case id, date, customer, purpose, note, destination, startUsesHome, start
+        case returnEnabled, returnUsesHome, returnTo, outboundKm, returnKm, kmPending
+        case source, createdAt, updatedAt, deleted
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        func opt<T: Decodable>(_ type: T.Type, _ key: CodingKeys) -> T? { try? c.decodeIfPresent(type, forKey: key) }
+
+        id = opt(String.self, .id) ?? UUID().uuidString
+        day = opt(String.self, .date).flatMap { DayString.date($0) != nil ? $0 : nil } ?? DayString.string(Date())
+        customer = opt(String.self, .customer) ?? ""
+        purpose = opt(String.self, .purpose) ?? ""
+        note = opt(String.self, .note) ?? ""
+        destination = opt(AddressValue.self, .destination) ?? AddressValue()
+        startUsesHome = opt(Bool.self, .startUsesHome) ?? true
+        start = opt(AddressValue.self, .start) ?? AddressValue()
+        returnEnabled = opt(Bool.self, .returnEnabled) ?? true
+        returnUsesHome = opt(Bool.self, .returnUsesHome) ?? true
+        returnTarget = opt(AddressValue.self, .returnTo) ?? AddressValue()
+        outboundKm = opt(Double.self, .outboundKm) ?? 0
+        returnKm = opt(Double.self, .returnKm) ?? 0
+        kmPending = opt(Bool.self, .kmPending) ?? false
+        source = opt(String.self, .source) ?? ""
+        createdAt = ISOTime.date(opt(String.self, .createdAt)) ?? ISOTime.now
+        updatedAt = ISOTime.date(opt(String.self, .updatedAt)) ?? Date(timeIntervalSince1970: 0)
+        deleted = opt(Bool.self, .deleted) ?? false
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(day, forKey: .date)
+        try c.encode(customer, forKey: .customer)
+        try c.encode(purpose, forKey: .purpose)
+        try c.encode(note, forKey: .note)
+        try c.encode(destination, forKey: .destination)
+        try c.encode(startUsesHome, forKey: .startUsesHome)
+        try c.encode(start, forKey: .start)
+        try c.encode(returnEnabled, forKey: .returnEnabled)
+        try c.encode(returnUsesHome, forKey: .returnUsesHome)
+        try c.encode(returnTarget, forKey: .returnTo)
+        try c.encode(outboundKm, forKey: .outboundKm)
+        try c.encode(returnKm, forKey: .returnKm)
+        try c.encode(kmPending, forKey: .kmPending)
+        try c.encode(source, forKey: .source)
+        try c.encode(ISOTime.string(createdAt), forKey: .createdAt)
+        try c.encode(ISOTime.string(updatedAt), forKey: .updatedAt)
+        try c.encode(deleted, forKey: .deleted)
+    }
 }

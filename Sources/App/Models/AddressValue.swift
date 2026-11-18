@@ -1,7 +1,7 @@
 import Foundation
 import CoreLocation
 
-/// Strukturierte Adresse für Eingabe & Routenberechnung.
+/// Strukturierte Adresse für Eingabe, Routenberechnung und Datei (siehe docs/DATENFORMAT.md).
 /// Koordinaten gelten nur, solange die Adresse seit dem Geocoding nicht verändert wurde.
 struct AddressValue: Equatable, Hashable {
     var street: String = ""
@@ -9,7 +9,7 @@ struct AddressValue: Equatable, Hashable {
     var city: String = ""
     var latitude: Double?
     var longitude: Double?
-    /// `singleLine`, für die die Koordinaten ermittelt wurden.
+    /// `singleLine`, für die die Koordinaten ermittelt wurden (wird nicht gespeichert).
     var coordinateKey: String?
 
     var cityLine: String {
@@ -28,7 +28,7 @@ struct AddressValue: Equatable, Hashable {
 
     var isEmpty: Bool { singleLine.isEmpty }
 
-    /// Mindestens Ort oder PLZ – reicht für eine (grobe) Routenberechnung.
+    /// Mindestens Ort oder PLZ – reicht für eine Routenberechnung.
     var isUsable: Bool {
         !city.trimmingCharacters(in: .whitespaces).isEmpty
             || postalCode.trimmingCharacters(in: .whitespaces).count == 5
@@ -43,5 +43,32 @@ struct AddressValue: Equatable, Hashable {
         latitude = coordinate.latitude
         longitude = coordinate.longitude
         coordinateKey = singleLine
+    }
+}
+
+extension AddressValue: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case street, postalCode, city, lat, lon
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        street = (try? c.decodeIfPresent(String.self, forKey: .street)) ?? ""
+        postalCode = (try? c.decodeIfPresent(String.self, forKey: .postalCode)) ?? ""
+        city = (try? c.decodeIfPresent(String.self, forKey: .city)) ?? ""
+        latitude = try? c.decodeIfPresent(Double.self, forKey: .lat)
+        longitude = try? c.decodeIfPresent(Double.self, forKey: .lon)
+        coordinateKey = (latitude != nil && longitude != nil) ? singleLine : nil
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(street, forKey: .street)
+        try c.encode(postalCode, forKey: .postalCode)
+        try c.encode(city, forKey: .city)
+        // Koordinaten nur speichern, wenn sie zur aktuellen Adresse gehören
+        let coordinate = validCoordinate
+        try c.encode(coordinate?.latitude, forKey: .lat)
+        try c.encode(coordinate?.longitude, forKey: .lon)
     }
 }

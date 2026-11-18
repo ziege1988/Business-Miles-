@@ -1,9 +1,9 @@
 import Foundation
 
-/// Unveränderliche Momentaufnahme für den Export (unabhängig von SwiftData).
+/// Unveränderliche Momentaufnahme für den Export (reine Werte, unabhängig vom Speicher).
 struct ReportData {
     struct Row: Identifiable {
-        let id: UUID
+        let id: String
         let date: Date
         let customer: String
         let purpose: String
@@ -65,8 +65,8 @@ struct ReportData {
 
     // MARK: Aufbau
 
-    static func make(summary: YearSummary, month: Int?, profile: UserProfile?) -> ReportData {
-        let rate = profile?.ratePerKm ?? 0.30
+    static func make(summary: YearSummary, month: Int?, settings: AppSettings) -> ReportData {
+        let rate = settings.ratePerKm
         let months = summary.months.filter { m in
             !m.trips.isEmpty && (month == nil || m.month == month)
         }
@@ -74,11 +74,11 @@ struct ReportData {
             MonthGroup(month: m.month, rows: m.trips.sorted { $0.date < $1.date }.map { row(for: $0, rate: rate) })
         }
         let header = Header(
-            name: profile?.fullName ?? "",
-            company: profile?.company ?? "",
-            address: profile?.homeAddress.singleLine ?? "",
-            taxNumber: profile?.taxNumber ?? "",
-            vehicle: profile?.vehicleDescription ?? "",
+            name: settings.fullName,
+            company: settings.company,
+            address: settings.home.singleLine,
+            taxNumber: settings.taxNumber,
+            vehicle: settings.vehicleDescription,
             rate: rate
         )
         return ReportData(year: summary.year, month: month, header: header, groups: groups, createdAt: .now)

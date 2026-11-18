@@ -1,11 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
-#if os(macOS)
 import AppKit
-#else
-import UIKit
-import Photos
-#endif
 
 enum ExportFormat: String, CaseIterable, Identifiable {
     case excel, pdf
@@ -70,29 +65,8 @@ enum ExportService {
         return data as Data
     }
 
-    // MARK: Bilder
-
-    static func pageImages(_ report: ReportData, scale: CGFloat = 2) -> [CGImage] {
-        ReportLayout.paginate(report).compactMap { page in
-            let renderer = ImageRenderer(content: ReportPageView(report: report, page: page))
-            renderer.proposedSize = ProposedViewSize(ReportLayout.pageSize)
-            renderer.scale = scale
-            return renderer.cgImage
-        }
-    }
-
     // MARK: Speichern
 
-    /// Schreibt die Datei in ein temporäres Verzeichnis (zum Teilen).
-    static func writeTemporary(_ data: Data, fileName: String) throws -> URL {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("Export", isDirectory: true)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let url = dir.appendingPathComponent(fileName)
-        try data.write(to: url, options: .atomic)
-        return url
-    }
-
-    #if os(macOS)
     /// Speichert im Standard-Exportordner. Gibt `nil` zurück, wenn keiner hinterlegt ist.
     static func saveToExportFolder(_ data: Data, fileName: String) throws -> URL? {
         guard let folder = ExportFolderStore.folderURL() else { return nil }
@@ -129,32 +103,8 @@ enum ExportService {
         }
         return url
     }
-    #else
-    enum PhotoError: LocalizedError {
-        case denied
-        var errorDescription: String? {
-            "Kein Zugriff auf Fotos. Bitte in den Einstellungen → Datenschutz → Fotos erlauben."
-        }
-    }
-
-    /// Speichert jede Berichtsseite als Bild in der Fotos-Mediathek.
-    static func saveImagesToPhotos(_ report: ReportData) async throws -> Int {
-        let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
-        guard status == .authorized || status == .limited else { throw PhotoError.denied }
-
-        let images = pageImages(report, scale: 2)
-        let pngs = images.compactMap { UIImage(cgImage: $0).pngData() }
-        try await PHPhotoLibrary.shared().performChanges {
-            for png in pngs {
-                PHAssetCreationRequest.forAsset().addResource(with: .photo, data: png, options: nil)
-            }
-        }
-        return pngs.count
-    }
-    #endif
 }
 
-#if os(macOS)
 /// Merkt sich den Exportordner (Security-Scoped Bookmark, nur auf diesem Mac).
 enum ExportFolderStore {
     private static let key = "exportFolderBookmark"
@@ -191,22 +141,5 @@ enum ExportFolderStore {
                                             includingResourceValuesForKeys: nil, relativeTo: nil) {
             UserDefaults.standard.set(data, forKey: key)
         }
-    }
-}
-#endif
-
-/// Hülle für `.fileExporter`.
-struct ExportDocument: FileDocument {
-    static var readableContentTypes: [UTType] { [.pdf, .spreadsheet, .data] }
-    var data: Data
-
-    init(data: Data) { self.data = data }
-
-    init(configuration: ReadConfiguration) throws {
-        data = configuration.file.regularFileContents ?? Data()
-    }
-
-    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        FileWrapper(regularFileWithContents: data)
     }
 }

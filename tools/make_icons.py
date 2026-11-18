@@ -107,10 +107,7 @@ def main():
     images = []
 
     ios = ios_icon(1024)
-    ios.save(os.path.join(OUT, "icon-ios-1024.png"))
-    images.append({"filename": "icon-ios-1024.png", "idiom": "universal",
-                   "platform": "ios", "size": "1024x1024"})
-
+    
     mac_master = mac_icon(1024)
     for pt in (16, 32, 128, 256, 512):
         for scale in (1, 2):
@@ -122,6 +119,13 @@ def main():
 
     with open(os.path.join(OUT, "Contents.json"), "w") as f:
         json.dump({"images": images, "info": {"author": "xcode", "version": 1}}, f, indent=2)
+
+    # Web-App (iPhone-Home-Bildschirm, Manifest)
+    web = os.path.join(ROOT, "web", "icons")
+    os.makedirs(web, exist_ok=True)
+    ios.resize((180, 180), Image.LANCZOS).save(os.path.join(web, "apple-touch-icon.png"))
+    for px in (192, 512):
+        ios.resize((px, px), Image.LANCZOS).save(os.path.join(web, f"icon-{px}.png"))
 
     # Vorschau für README
     preview = os.path.join(ROOT, "docs")

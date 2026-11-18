@@ -1,12 +1,12 @@
 import SwiftUI
 
-/// Adresseingabe: PLZ → Ort wird automatisch ergänzt, Straßen werden vorgeschlagen.
+/// Adresseingabe: PLZ → Ort wird automatisch ergänzt (offline), Straßen werden vorgeschlagen.
 struct AddressInputView: View {
     @Binding var address: AddressValue
 
     @StateObject private var completer = AddressCompleter()
     @State private var cityAutoFilled = false
-    @State private var lookingUpCity = false
+    @State private var cityChoices: [String] = []
     @State private var lastPickedStreet: String? = nil
     @FocusState private var focusedField: Field?
 
@@ -18,18 +18,23 @@ struct AddressInputView: View {
                 TextField("PLZ", text: $address.postalCode, prompt: Text("PLZ"))
                     .focused($focusedField, equals: .postalCode)
                     .frame(width: 90)
-                    #if os(iOS)
-                    .keyboardType(.numberPad)
-                    .textContentType(.postalCode)
-                    #endif
-                ZStack(alignment: .trailing) {
-                    TextField("Ort", text: $address.city, prompt: Text("Ort"))
-                        .focused($focusedField, equals: .city)
-                        #if os(iOS)
-                        .textContentType(.addressCity)
-                        #endif
-                    if lookingUpCity {
-                        ProgressView().controlSize(.small).padding(.trailing, 8)
+                TextField("Ort", text: $address.city, prompt: Text("Ort"))
+                    .focused($focusedField, equals: .city)
+            }
+
+            if cityChoices.count > 1 {
+                HStack(spacing: 6) {
+                    Text("Ort wählen:")
+                        .font(.caption)
+                        .foregroundStyle(Theme.secondaryText)
+                    ForEach(cityChoices, id: \.self) { city in
+                        Button(city) {
+                            address.city = city
+                            cityAutoFilled = true
+                            cityChoices = []
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                     }
                 }
             }
@@ -37,9 +42,6 @@ struct AddressInputView: View {
             TextField("Straße und Hausnummer", text: $address.street,
                       prompt: Text("Straße und Hausnummer"))
                 .focused($focusedField, equals: .street)
-                #if os(iOS)
-                .textContentType(.streetAddressLine1)
-                #endif
 
             if focusedField == .street, !completer.suggestions.isEmpty {
                 suggestionList
@@ -48,17 +50,14 @@ struct AddressInputView: View {
         .textFieldStyle(.roundedBorder)
         .labelsHidden()
         .autocorrectionDisabled()
-        // PLZ → Ort
-        .task(id: address.postalCode) {
-            let plz = address.postalCode.trimmingCharacters(in: .whitespaces)
-            guard plz.count == 5, plz.allSatisfy(\.isNumber) else { return }
-            guard address.city.isEmpty || cityAutoFilled else { return }
-            try? await Task.sleep(for: .milliseconds(250))
-            guard !Task.isCancelled else { return }
-            lookingUpCity = true
-            defer { lookingUpCity = false }
-            if let city = await RouteService.city(forPostalCode: plz), !Task.isCancelled {
-                address.city = city
+        // PLZ → Ort (sofort, aus der mitgelieferten Tabelle)
+        .onChange(of: address.postalCode) { _, newValue in
+            let digits = String(newValue.filter(\.isNumber).prefix(5))
+            if digits != newValue { address.postalCode = digits; return }
+            let cities = PostalCodes.cities(for: digits)
+            cityChoices = cities
+            if let first = cities.first, address.city.isEmpty || cityAutoFilled {
+                address.city = first
                 cityAutoFilled = true
             }
         }
@@ -66,7 +65,7 @@ struct AddressInputView: View {
         .onChange(of: address.city) { _, _ in
             if focusedField == .city { cityAutoFilled = false }
         }
-        // Straße → Vorschläge
+        // Straße → Vorschläge (Apple Maps)
         .onChange(of: address.street) { _, newValue in
             guard focusedField == .street else { return }
             if newValue == lastPickedStreet {
@@ -119,6 +118,7 @@ struct AddressInputView: View {
             guard let resolved = await completer.resolve(suggestion) else { return }
             lastPickedStreet = resolved.street
             cityAutoFilled = false
+            cityChoices = []
             address = resolved
             completer.clear()
         }

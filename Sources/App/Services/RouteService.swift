@@ -16,18 +16,8 @@ enum RouteError: LocalizedError {
     }
 }
 
-/// PLZ → Ort, Geocoding und Routen-Kilometer über Apple Maps.
+/// Geocoding und Routen-Kilometer über Apple Maps.
 enum RouteService {
-
-    /// Ermittelt den Ort zu einer deutschen Postleitzahl.
-    static func city(forPostalCode plz: String) async -> String? {
-        let code = plz.trimmingCharacters(in: .whitespaces)
-        guard code.count == 5, code.allSatisfy(\.isNumber) else { return nil }
-        let placemarks = try? await CLGeocoder().geocodeAddressString("\(code), Deutschland")
-        guard let pm = placemarks?.first(where: { $0.postalCode == code }) ?? placemarks?.first
-        else { return nil }
-        return pm.locality ?? pm.subAdministrativeArea
-    }
 
     static func coordinate(for address: AddressValue) async throws -> CLLocationCoordinate2D {
         if let c = address.validCoordinate { return c }

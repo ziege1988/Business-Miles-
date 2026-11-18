@@ -1,52 +1,25 @@
 import SwiftUI
-import SwiftData
 
 struct SettingsView: View {
-    @Environment(\.modelContext) private var context
-    @Query(sort: \UserProfile.createdAt) private var profiles: [UserProfile]
-
-    var body: some View {
-        Group {
-            if let profile = ProfileStore.current(profiles) {
-                SettingsForm(profile: profile)
-            } else {
-                ProgressView()
-                    .onAppear { ProfileStore.ensure(in: context, profiles: profiles) }
-            }
-        }
-    }
-}
-
-private struct SettingsForm: View {
-    @Bindable var profile: UserProfile
-    @Environment(\.modelContext) private var context
-    @Environment(\.dismiss) private var dismiss
-
-    #if os(macOS)
+    @EnvironmentObject private var store: TripStore
+    @State private var draft = AppSettings()
+    @State private var loaded = false
     @State private var exportFolderPath: String? = ExportFolderStore.folderURL()?.path
-    #endif
-
-    private var homeBinding: Binding<AddressValue> {
-        Binding(
-            get: { profile.homeAddress },
-            set: { profile.homeAddress = $0 }
-        )
-    }
 
     var body: some View {
         Form {
             Section {
-                AddressInputView(address: homeBinding)
+                AddressInputView(address: $draft.home)
             } header: {
                 Text("Startadresse")
             } footer: {
-                Text("Wird bei jeder neuen Fahrt als Start und Ziel der Rückfahrt vorausgewählt und erscheint als Anschrift im Export.")
+                Text("Wird bei jeder neuen Fahrt als Start und Ziel der Rückfahrt vorausgewählt und erscheint als Anschrift im Export. Gilt auch auf dem iPhone.")
             }
 
             Section {
-                TextField("Name", text: $profile.fullName)
-                TextField("Firma (optional)", text: $profile.company)
-                TextField("Steuernummer", text: $profile.taxNumber)
+                TextField("Name", text: $draft.fullName)
+                TextField("Firma (optional)", text: $draft.company)
+                TextField("Steuernummer", text: $draft.taxNumber)
             } header: {
                 Text("Angaben für die Steuer")
             } footer: {
@@ -54,13 +27,13 @@ private struct SettingsForm: View {
             }
 
             Section {
-                TextField("Fahrzeug (z. B. VW Golf)", text: $profile.vehicleName)
-                TextField("Kennzeichen", text: $profile.licensePlate)
+                TextField("Fahrzeug (z. B. VW Golf)", text: $draft.vehicleName)
+                TextField("Kennzeichen", text: $draft.licensePlate)
                 Picker("Fahrzeugart", selection: Binding(
-                    get: { profile.vehicleType },
+                    get: { draft.vehicleType },
                     set: { newValue in
-                        profile.vehicleType = newValue
-                        if let rate = newValue.defaultRate { profile.ratePerKm = rate }
+                        draft.vehicleType = newValue
+                        if let rate = newValue.defaultRate { draft.ratePerKm = rate }
                     }
                 )) {
                     ForEach(VehicleType.allCases) { type in
@@ -70,15 +43,12 @@ private struct SettingsForm: View {
                 HStack {
                     Text("Kilometersatz")
                     Spacer()
-                    TextField("Satz", value: $profile.ratePerKm,
+                    TextField("Satz", value: $draft.ratePerKm,
                               format: .number.precision(.fractionLength(2)).locale(Fmt.locale))
                         .labelsHidden()
                         .multilineTextAlignment(.trailing)
                         .frame(width: 80)
-                        .disabled(profile.vehicleType != .custom)
-                        #if os(iOS)
-                        .keyboardType(.decimalPad)
-                        #endif
+                        .disabled(draft.vehicleType != .custom)
                     Text("€ / km").foregroundStyle(Theme.secondaryText)
                 }
             } header: {
@@ -87,7 +57,30 @@ private struct SettingsForm: View {
                 Text("Für betrieblich veranlasste Fahrten mit einem privaten Fahrzeug können pauschal 0,30 € (Pkw) bzw. 0,20 € (Motorrad/Motorroller) je gefahrenem Kilometer angesetzt werden. Bitte im Zweifel mit der Steuerberatung abstimmen.")
             }
 
-            #if os(macOS)
+            Section {
+                HStack {
+                    Image(systemName: "cloud")
+                        .foregroundStyle(Theme.accent)
+                    Text(store.folderURL?.path ?? "Noch kein Ordner gewählt")
+                        .foregroundStyle(store.folderURL == nil ? Theme.secondaryText : Theme.ink)
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                    Spacer()
+                    Button(store.folderURL == nil ? "Ordner wählen …" : "Ändern …") { store.chooseFolder() }
+                }
+                if store.folderURL != nil && !store.folderLooksRight {
+                    Label("Der gewählte Ordner heißt nicht „Business-Miles“. Das iPhone liest aus OneDrive › Business-Miles.",
+                          systemImage: "exclamationmark.triangle")
+                        .font(.footnote)
+                        .foregroundStyle(Theme.warning)
+                }
+                SyncBadge()
+            } header: {
+                Text("Datenablage (OneDrive)")
+            } footer: {
+                Text("Fahrten und Einstellungen liegen in „Business-Miles/business-miles.json“. Tipp: Im Finder per Rechtsklick auf den Ordner „Immer auf diesem Gerät behalten“ wählen.")
+            }
+
             Section {
                 HStack {
                     Image(systemName: "folder")
@@ -95,14 +88,12 @@ private struct SettingsForm: View {
                     Text(exportFolderPath ?? "Kein Ordner gewählt – beim Export wird nachgefragt")
                         .foregroundStyle(exportFolderPath == nil ? Theme.secondaryText : Theme.ink)
                         .lineLimit(1)
-                        .truncationMode(.middle)
+                        .truncationMode(.head)
                     Spacer()
                 }
                 HStack {
                     Button("Ordner wählen …") {
-                        if let url = ExportFolderStore.chooseFolder() {
-                            exportFolderPath = url.path
-                        }
+                        if let url = ExportFolderStore.chooseFolder() { exportFolderPath = url.path }
                     }
                     if exportFolderPath != nil {
                         Button("Zurücksetzen") {
@@ -112,31 +103,24 @@ private struct SettingsForm: View {
                     }
                 }
             } header: {
-                Text("Export")
+                Text("Exportordner")
             } footer: {
                 Text("Excel- und PDF-Dateien werden direkt in diesem Ordner gespeichert.")
-            }
-            #endif
-
-            Section("Synchronisation") {
-                Label(Persistence.syncMode.rawValue,
-                      systemImage: Persistence.syncMode == .iCloud ? "icloud" : "icloud.slash")
-                    .foregroundStyle(Persistence.syncMode == .iCloud ? Theme.accentDeep : Theme.warning)
             }
         }
         .formStyle(.grouped)
         .navigationTitle("Einstellungen")
-        .onChange(of: profile.homeAddress) { _, _ in try? context.save() }
-        .onDisappear { try? context.save() }
-        #if os(iOS)
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Fertig") {
-                    try? context.save()
-                    dismiss()
-                }
-            }
+        .onAppear {
+            draft = store.settings
+            loaded = true
         }
-        #endif
+        // Änderungen aus der Datei (z. B. vom iPhone) übernehmen, solange hier nichts abweicht
+        .onChange(of: store.settings) { _, newValue in
+            if !newValue.sameContent(as: draft) { draft = newValue }
+        }
+        .onChange(of: draft) { _, newValue in
+            guard loaded else { return }
+            store.updateSettings(newValue)
+        }
     }
 }

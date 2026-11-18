@@ -48,13 +48,7 @@ struct YearDetailView: View {
         }
     }
 
-    private var horizontalPadding: CGFloat {
-        #if os(macOS)
-        32
-        #else
-        16
-        #endif
-    }
+    private let horizontalPadding: CGFloat = 32
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
@@ -67,14 +61,12 @@ struct YearDetailView: View {
                     .foregroundStyle(Theme.secondaryText)
             }
             Spacer()
-            #if os(macOS)
             Button(action: onNew) {
                 Label("Neue Fahrt", systemImage: "plus")
                     .padding(.horizontal, 6)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            #endif
         }
     }
 

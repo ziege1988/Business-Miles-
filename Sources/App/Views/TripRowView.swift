@@ -36,7 +36,7 @@ struct TripRowView: View {
                         Text(trip.purpose)
                     }
                     if !trip.startUsesHome {
-                        Label("Start: \(trip.startCity.isEmpty ? trip.start.singleLine : trip.startCity)",
+                        Label("Start: \(trip.start.city.isEmpty ? trip.start.singleLine : trip.start.city)",
                               systemImage: "arrow.triangle.turn.up.right.diamond")
                     }
                 }
@@ -48,9 +48,18 @@ struct TripRowView: View {
             Spacer(minLength: 8)
 
             VStack(alignment: .trailing, spacing: 3) {
-                Text(Fmt.km(trip.totalKm))
-                    .font(.body.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(Theme.ink)
+                if trip.kmPending {
+                    Text("km folgen")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Theme.warning)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Theme.warning.opacity(0.12)))
+                } else {
+                    Text(Fmt.km(trip.totalKm))
+                        .font(.body.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(Theme.ink)
+                }
                 Text(trip.routeDescription)
                     .font(.caption)
                     .foregroundStyle(Theme.secondaryText)

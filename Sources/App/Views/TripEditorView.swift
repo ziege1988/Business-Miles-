@@ -1,69 +1,45 @@
 import SwiftUI
-import SwiftData
 
 /// Neue Fahrt anlegen bzw. bestehende bearbeiten.
 struct TripEditorView: View {
     let request: EditorRequest
-    let profile: UserProfile?
-    let allTrips: [Trip]
 
-    @Environment(\.modelContext) private var context
+    @EnvironmentObject private var store: TripStore
     @Environment(\.dismiss) private var dismiss
 
-    @State private var date: Date
-    @State private var customer: String
-    @State private var purpose: String
-    @State private var note: String
-    @State private var destination: AddressValue
-    @State private var startUsesHome: Bool
+    @State private var trip: Trip
     @State private var otherStart: AddressValue
-    @State private var returnEnabled: Bool
-    @State private var returnUsesHome: Bool
     @State private var otherReturn: AddressValue
-    @State private var outboundKm: Double
-    @State private var returnKm: Double
 
     @State private var initialRouteKey: String? = nil
     @State private var isCalculating = false
     @State private var routeError: String? = nil
     @State private var confirmDelete = false
-    @State private var showSettings = false
 
-    init(request: EditorRequest, profile: UserProfile?, allTrips: [Trip]) {
+    init(request: EditorRequest) {
         self.request = request
-        self.profile = profile
-        self.allTrips = allTrips
-
-        let source: Trip?
+        var t: Trip
         switch request {
-        case .new: source = nil
-        case .edit(let t), .duplicate(let t): source = t
+        case .new:
+            t = Trip()
+        case .edit(let existing):
+            t = existing
+        case .duplicate(let existing):
+            t = existing
+            t.id = UUID().uuidString
+            t.day = DayString.string(Date())
+            t.note = ""
+            t.createdAt = ISOTime.now
+            t.deleted = false
         }
-        let isEdit: Bool
-        switch request {
-        case .edit: isEdit = true
-        case .new, .duplicate: isEdit = false
-        }
-
-        _date = State(initialValue: isEdit ? (source?.date ?? .now) : .now)
-        _customer = State(initialValue: source?.customer ?? "")
-        _purpose = State(initialValue: source?.purpose ?? "")
-        _note = State(initialValue: isEdit ? (source?.note ?? "") : "")
-        _destination = State(initialValue: source?.destination ?? AddressValue())
-        _startUsesHome = State(initialValue: source?.startUsesHome ?? true)
-        _otherStart = State(initialValue: (source?.startUsesHome ?? true) ? AddressValue() : (source?.start ?? AddressValue()))
-        _returnEnabled = State(initialValue: source?.returnEnabled ?? true)
-        _returnUsesHome = State(initialValue: source?.returnUsesHome ?? true)
-        _otherReturn = State(initialValue: (source?.returnUsesHome ?? true) ? AddressValue() : (source?.returnTarget ?? AddressValue()))
-        _outboundKm = State(initialValue: source?.outboundKm ?? 0)
-        _returnKm = State(initialValue: source?.returnKm ?? 0)
-
-        if let source {
-            let home = profile?.homeAddress ?? AddressValue()
-            let start = source.startUsesHome ? home : source.start
-            let ret = source.returnUsesHome ? home : source.returnTarget
-            _initialRouteKey = State(initialValue: Self.routeKey(start: start, destination: source.destination,
-                                                                 returnEnabled: source.returnEnabled, returnTo: ret))
+        _trip = State(initialValue: t)
+        _otherStart = State(initialValue: t.startUsesHome ? AddressValue() : t.start)
+        _otherReturn = State(initialValue: t.returnUsesHome ? AddressValue() : t.returnTarget)
+        if case .new = request {} else {
+            // Gespeicherte Route nicht beim Öffnen neu berechnen
+            _initialRouteKey = State(initialValue: Self.routeKey(
+                start: t.start, destination: t.destination,
+                returnEnabled: t.returnEnabled, returnTo: t.returnTarget))
         }
     }
 
@@ -75,16 +51,15 @@ struct TripEditorView: View {
         case .new, .duplicate: return false
         }
     }
-    private var home: AddressValue { profile?.homeAddress ?? AddressValue() }
-    private var effectiveStart: AddressValue { startUsesHome ? home : otherStart }
-    private var effectiveReturn: AddressValue { returnUsesHome ? home : otherReturn }
-    private var totalKm: Double { outboundKm + (returnEnabled ? returnKm : 0) }
-    private var needsHome: Bool { startUsesHome || (returnEnabled && returnUsesHome) }
-    private var canSave: Bool { destination.isUsable }
+
+    private var home: AddressValue { store.settings.home }
+    private var effectiveStart: AddressValue { trip.startUsesHome ? home : otherStart }
+    private var effectiveReturn: AddressValue { trip.returnUsesHome ? home : otherReturn }
+    private var needsHome: Bool { trip.startUsesHome || (trip.returnEnabled && trip.returnUsesHome) }
 
     private var currentRouteKey: String {
-        Self.routeKey(start: effectiveStart, destination: destination,
-                      returnEnabled: returnEnabled, returnTo: effectiveReturn)
+        Self.routeKey(start: effectiveStart, destination: trip.destination,
+                      returnEnabled: trip.returnEnabled, returnTo: effectiveReturn)
     }
 
     private static func routeKey(start: AddressValue, destination: AddressValue,
@@ -97,7 +72,7 @@ struct TripEditorView: View {
     private var recentDestinations: [Trip] {
         var seen = Set<String>()
         var result: [Trip] = []
-        for t in allTrips {
+        for t in store.trips.sorted(by: { $0.day > $1.day }) {
             let key = t.destination.singleLine.lowercased()
             guard !key.isEmpty, !seen.contains(key) else { continue }
             seen.insert(key)
@@ -113,20 +88,20 @@ struct TripEditorView: View {
         NavigationStack {
             Form {
                 Section("Datum") {
-                    DatePicker("Datum", selection: $date, displayedComponents: .date)
+                    DatePicker("Datum", selection: $trip.date, displayedComponents: .date)
                         .environment(\.locale, Fmt.locale)
                 }
 
                 Section("Kunde & Anlass") {
-                    TextField("Kunde / Geschäftspartner", text: $customer)
-                    TextField("Anlass (z. B. Fotoshooting, Besprechung)", text: $purpose)
+                    TextField("Kunde / Geschäftspartner", text: $trip.customer)
+                    TextField("Anlass (z. B. Fotoshooting, Besprechung)", text: $trip.purpose)
                 }
 
                 Section {
-                    if !isEditing, destination.isEmpty, !recentDestinations.isEmpty {
+                    if !isEditing, trip.destination.isEmpty, !recentDestinations.isEmpty {
                         recentDestinationChips
                     }
-                    AddressInputView(address: $destination)
+                    AddressInputView(address: $trip.destination)
                 } header: {
                     Text("Zieladresse")
                 } footer: {
@@ -134,14 +109,14 @@ struct TripEditorView: View {
                 }
 
                 Section("Start") {
-                    Picker("Start", selection: $startUsesHome) {
+                    Picker("Start", selection: $trip.startUsesHome) {
                         Text("Startadresse").tag(true)
                         Text("Andere Adresse").tag(false)
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
 
-                    if startUsesHome {
+                    if trip.startUsesHome {
                         homeAddressRow
                     } else {
                         AddressInputView(address: $otherStart)
@@ -149,14 +124,14 @@ struct TripEditorView: View {
                 }
 
                 Section("Rückfahrt") {
-                    Toggle("Hin- und Rückfahrt", isOn: $returnEnabled)
-                    if returnEnabled {
-                        Picker("Zurück nach", selection: $returnUsesHome) {
+                    Toggle("Hin- und Rückfahrt", isOn: $trip.returnEnabled)
+                    if trip.returnEnabled {
+                        Picker("Zurück nach", selection: $trip.returnUsesHome) {
                             Text("Startadresse").tag(true)
                             Text("Andere Adresse").tag(false)
                         }
                         .pickerStyle(.segmented)
-                        if !returnUsesHome {
+                        if !trip.returnUsesHome {
                             AddressInputView(address: $otherReturn)
                         }
                     }
@@ -165,7 +140,7 @@ struct TripEditorView: View {
                 distanceSection
 
                 Section("Notiz (optional)") {
-                    TextField("Notiz", text: $note, axis: .vertical)
+                    TextField("Notiz", text: $trip.note, axis: .vertical)
                         .lineLimit(2...4)
                 }
 
@@ -177,16 +152,13 @@ struct TripEditorView: View {
             }
             .formStyle(.grouped)
             .navigationTitle(isEditing ? "Fahrt bearbeiten" : "Neue Fahrt")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Abbrechen") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Sichern") { save() }
-                        .disabled(!canSave)
+                        .disabled(!trip.destination.isUsable)
                         .keyboardShortcut(.defaultAction)
                 }
             }
@@ -197,17 +169,13 @@ struct TripEditorView: View {
                 await recalculate()
             }
             .confirmationDialog("Fahrt löschen?", isPresented: $confirmDelete) {
-                Button("Löschen", role: .destructive) { deleteTrip() }
+                Button("Löschen", role: .destructive) {
+                    store.delete(id: trip.id)
+                    dismiss()
+                }
             }
-            #if os(iOS)
-            .sheet(isPresented: $showSettings) {
-                NavigationStack { SettingsView() }
-            }
-            #endif
         }
-        #if os(macOS)
         .frame(minWidth: 580, idealWidth: 620, minHeight: 720, idealHeight: 820)
-        #endif
     }
 
     // MARK: Abschnitte
@@ -222,16 +190,11 @@ struct TripEditorView: View {
         }
     }
 
-    @ViewBuilder
     private var missingHomeHint: some View {
         VStack(alignment: .leading, spacing: 6) {
             Label("Noch keine Startadresse hinterlegt", systemImage: "exclamationmark.triangle.fill")
                 .foregroundStyle(Theme.warning)
-            #if os(macOS)
             SettingsLink { Text("In den Einstellungen hinterlegen …") }
-            #else
-            Button("In den Einstellungen hinterlegen …") { showSettings = true }
-            #endif
         }
     }
 
@@ -242,15 +205,16 @@ struct TripEditorView: View {
                 .foregroundStyle(Theme.secondaryText)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(recentDestinations) { trip in
+                    ForEach(recentDestinations) { recent in
                         Button {
-                            destination = trip.destination
-                            if customer.isEmpty { customer = trip.customer }
-                            if purpose.isEmpty { purpose = trip.purpose }
+                            trip.destination = recent.destination
+                            if trip.customer.isEmpty { trip.customer = recent.customer }
+                            if trip.purpose.isEmpty { trip.purpose = recent.purpose }
                         } label: {
                             VStack(alignment: .leading, spacing: 1) {
-                                Text(trip.title).font(.caption.weight(.semibold)).lineLimit(1)
-                                Text(trip.destCity).font(.caption2).foregroundStyle(Theme.secondaryText).lineLimit(1)
+                                Text(recent.title).font(.caption.weight(.semibold)).lineLimit(1)
+                                Text(recent.destination.city).font(.caption2)
+                                    .foregroundStyle(Theme.secondaryText).lineLimit(1)
                             }
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
@@ -266,28 +230,26 @@ struct TripEditorView: View {
 
     private var distanceSection: some View {
         Section {
-            kmRow("Hinfahrt", value: $outboundKm)
-            if returnEnabled {
-                kmRow("Rückfahrt", value: $returnKm)
+            kmRow("Hinfahrt", value: $trip.outboundKm)
+            if trip.returnEnabled {
+                kmRow("Rückfahrt", value: $trip.returnKm)
             }
             HStack {
                 Text("Gesamt").font(.headline)
                 Spacer()
-                Text(Fmt.km(totalKm))
+                Text(Fmt.km(trip.totalKm))
                     .font(.headline.monospacedDigit())
                     .foregroundStyle(Theme.accentDeep)
             }
-            if let rate = profile?.ratePerKm {
-                HStack {
-                    Text("Pauschale (\(Fmt.rate(rate))/km)")
-                        .foregroundStyle(Theme.secondaryText)
-                    Spacer()
-                    Text(Fmt.euro(totalKm * rate))
-                        .foregroundStyle(Theme.secondaryText)
-                        .monospacedDigit()
-                }
-                .font(.subheadline)
+            HStack {
+                Text("Pauschale (\(Fmt.rate(store.settings.ratePerKm))/km)")
+                    .foregroundStyle(Theme.secondaryText)
+                Spacer()
+                Text(Fmt.euro(trip.amount(rate: store.settings.ratePerKm)))
+                    .foregroundStyle(Theme.secondaryText)
+                    .monospacedDigit()
             }
+            .font(.subheadline)
 
             HStack(spacing: 8) {
                 if isCalculating {
@@ -300,7 +262,7 @@ struct TripEditorView: View {
                     } label: {
                         Label("Kilometer neu berechnen", systemImage: "arrow.triangle.2.circlepath")
                     }
-                    .disabled(!destination.isUsable)
+                    .disabled(!trip.destination.isUsable)
                 }
             }
             .font(.subheadline)
@@ -316,7 +278,7 @@ struct TripEditorView: View {
         } header: {
             Text("Strecke")
         } footer: {
-            Text("Die Kilometer werden per Apple Maps (Auto, empfohlene Route) berechnet und können überschrieben werden.")
+            Text("Die Kilometer werden per Apple Karten (Auto, empfohlene Route) berechnet und können überschrieben werden.")
         }
     }
 
@@ -329,9 +291,6 @@ struct TripEditorView: View {
                 .labelsHidden()
                 .multilineTextAlignment(.trailing)
                 .frame(width: 90)
-                #if os(iOS)
-                .keyboardType(.decimalPad)
-                #endif
             Text("km").foregroundStyle(Theme.secondaryText)
         }
     }
@@ -341,9 +300,9 @@ struct TripEditorView: View {
     @MainActor
     private func recalculate() async {
         let start = effectiveStart
-        let dest = destination
+        let dest = trip.destination
         let ret = effectiveReturn
-        let withReturn = returnEnabled
+        let withReturn = trip.returnEnabled
 
         guard dest.isUsable else { return }
         guard start.isUsable else {
@@ -366,10 +325,10 @@ struct TripEditorView: View {
                 back = try await RouteService.drivingDistanceKm(from: dest, to: ret)
             }
             guard !Task.isCancelled else { return }
-            outboundKm = outbound
-            if withReturn { returnKm = back }
+            trip.outboundKm = outbound
+            if withReturn { trip.returnKm = back }
         } catch is CancellationError {
-            // Neue Eingabe – Berechnung wird erneut gestartet.
+            // Neue Eingabe – Berechnung startet erneut.
         } catch {
             routeError = error.localizedDescription
         }
@@ -377,35 +336,17 @@ struct TripEditorView: View {
 
     @MainActor
     private func save() {
-        let trip: Trip
-        if case .edit(let existing) = request {
-            trip = existing
-        } else {
-            trip = Trip()
-            context.insert(trip)
-        }
-        trip.date = date
-        trip.customer = customer.trimmingCharacters(in: .whitespacesAndNewlines)
-        trip.purpose = purpose.trimmingCharacters(in: .whitespacesAndNewlines)
-        trip.note = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        trip.destination = destination
-        trip.startUsesHome = startUsesHome
-        trip.start = effectiveStart
-        trip.returnEnabled = returnEnabled
-        trip.returnUsesHome = returnUsesHome
-        trip.returnTarget = returnEnabled ? effectiveReturn : AddressValue()
-        trip.outboundKm = max(0, outboundKm)
-        trip.returnKm = returnEnabled ? max(0, returnKm) : 0
-        trip.updatedAt = .now
-        try? context.save()
-        dismiss()
-    }
-
-    private func deleteTrip() {
-        if case .edit(let existing) = request {
-            context.delete(existing)
-            try? context.save()
-        }
+        var t = trip
+        t.customer = t.customer.trimmingCharacters(in: .whitespacesAndNewlines)
+        t.purpose = t.purpose.trimmingCharacters(in: .whitespacesAndNewlines)
+        t.note = t.note.trimmingCharacters(in: .whitespacesAndNewlines)
+        t.start = effectiveStart
+        t.returnTarget = t.returnEnabled ? effectiveReturn : AddressValue()
+        t.outboundKm = max(0, t.outboundKm)
+        t.returnKm = t.returnEnabled ? max(0, t.returnKm) : 0
+        t.kmPending = t.totalKm <= 0
+        t.source = "mac"
+        store.upsert(t)
         dismiss()
     }
 }

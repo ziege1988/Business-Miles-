@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Business Miles</title>
+  <meta name="description" content="Kundenfahrten erfassen – Kilometer, Monats- und Jahressummen, Export für die Steuer.">
+  <meta name="theme-color" content="#F5F7F9">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Business Miles">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <!-- Start-Popup -->
+  <div id="splash" class="splash" aria-hidden="true">
+    <div class="splash-card">
+      <img src="icons/logo.svg" alt="" width="96" height="96">
+      <div class="wordmark big"><span>Business</span> <span class="accent">Miles</span></div>
+      <p>Fahrten erfassen. Kilometer im Blick.</p>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <button class="icon-btn" id="btn-settings" aria-label="Einstellungen">
+      <svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+    </button>
+    <div class="brand">
+      <img src="icons/logo.svg" alt="" width="26" height="26">
+      <div class="wordmark"><span>Business</span> <span class="accent">Miles</span></div>
+    </div>
+    <button class="icon-btn" id="btn-export" aria-label="Exportieren">
+      <svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>
+    </button>
+  </header>
+
+  <button id="sync-pill" class="sync-pill" type="button"></button>
+
+  <nav id="years" class="years" aria-label="Jahre"></nav>
+  <main id="main" class="main"></main>
+
+  <div class="fab-bar">
+    <button id="btn-new" class="btn primary large" type="button">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Neue Fahrt
+    </button>
+  </div>
+
+  <!-- Bottom-Sheets -->
+  <section id="sheet-editor" class="sheet" hidden></section>
+  <section id="sheet-settings" class="sheet" hidden></section>
+  <section id="sheet-export" class="sheet" hidden></section>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="vendor/msal-browser.min.js"></script>
+  <script src="vendor/jspdf.umd.min.js"></script>
+  <script src="vendor/jspdf.plugin.autotable.min.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

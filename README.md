@@ -3,119 +3,157 @@
 # Business Miles
 
 Fahrten zum Kunden erfassen – mit automatischer Kilometerberechnung, Monats- und Jahressummen
-und einem steuertauglichen Export. Eine App für **Mac** und **iPhone**, abgeglichen über **iCloud**,
-inklusive **Widget**.
+und einem steuertauglichen Export.
+
+- **Mac:** native App mit Widget
+- **iPhone:** Web-App auf dem Home-Bildschirm (funktioniert auch offline)
+- **Daten:** eine Datei in deinem **OneDrive-Ordner `Business-Miles`** – Mac und iPhone lesen und schreiben dieselbe Datei
+- **Kosten:** 0 € – kein Apple-Developer-Account, kein Server, keine API-Schlüssel
+
+```
+   Mac-App ──(OneDrive-Client)──┐
+                                ├──►  OneDrive › Business-Miles › business-miles.json
+   iPhone-Web-App ──(Microsoft Graph)──┘
+```
 
 ---
 
 ## Funktionen
 
-| Bereich | Umsetzung |
-|---|---|
-| **Start-Popup** | Helles Popup mit Logo und Schriftzug beim App-Start (≈ 1,6 s, blendet weich aus) |
-| **Neue Fahrt** | Datum · Kunde/Geschäftspartner · Anlass · Zieladresse · Start · Rückfahrt · Notiz |
-| **Adresshilfe** | PLZ eingeben → Ort wird automatisch ergänzt. Beim Tippen der Straße erscheinen Vorschläge (Apple Maps) |
-| **Startadresse** | In den Einstellungen fest hinterlegt und bei jeder Fahrt vorausgewählt; per Klick „Andere Adresse“ |
-| **Hin & zurück** | Standardmäßig Hin- und Rückfahrt; Rückfahrt abschaltbar oder zu einer anderen Adresse |
-| **Kilometer** | Automatisch per Apple Maps (Auto, empfohlene Route), getrennt für Hin- und Rückfahrt, jederzeit überschreibbar |
-| **Übersicht** | Kennzahlen (km, Fahrten, Ø, Pauschale), Monatsdiagramm, Fahrten nach Monaten mit Monatssummen |
-| **Jahres-Kacheln** | Mac: senkrechter Slider rechts · iPhone: waagerechter Slider oben |
-| **Export** | Excel (.xlsx, mit Formeln) · PDF (A4 quer, mit Unterschriftsfeld) · iPhone: Bild in Fotos |
-| **Zeitraum** | Ganzes Jahr oder einzelner Monat |
-| **Zielordner (Mac)** | Fester Exportordner in den Einstellungen, sonst Sichern-Dialog |
-| **Steuerangaben** | Name, Firma, Steuernummer, Anschrift, Fahrzeug, Kennzeichen, km-Satz (Pkw 0,30 € / Motorrad 0,20 € / eigener) |
-| **Widget** | Klein: km im Monat + Jahr · Mittel: zusätzlich letzte Fahrt und Button „Neue Fahrt“ |
-| **Sync** | iCloud (CloudKit, private Datenbank) – Fahrten und Einstellungen erscheinen auf allen Geräten |
-| **Extras** | „Letzte Ziele“ als Schnellauswahl · Fahrt duplizieren · ⌘N für neue Fahrt (Mac) |
+| Bereich | Mac | iPhone |
+|---|---|---|
+| Start-Popup mit Logo | ✓ | ✓ |
+| Neue Fahrt: Datum, Kunde, Anlass, Ziel, Start, Rückfahrt, Notiz | ✓ | ✓ |
+| PLZ → Ort automatisch (offline, mit Auswahl bei mehreren Orten) | ✓ | ✓ |
+| Straßenvorschläge beim Tippen | Apple Karten | OpenStreetMap (Photon) |
+| km automatisch, Hin- und Rückfahrt getrennt, überschreibbar | Apple Karten | OpenStreetMap (OSRM) |
+| Startadresse vorausgewählt, „Andere Adresse“ per Klick | ✓ | ✓ |
+| Jahres-Kacheln | senkrecht rechts | waagerecht oben |
+| Monats- und Jahressummen, Diagramm, Pauschale | ✓ | ✓ |
+| Export Excel (.xlsx) und PDF | in Zielordner | Teilen / In Dateien sichern |
+| Export als Bild für die Galerie | – | ✓ (in Fotos sichern) |
+| Widget | ✓ (klein + mittel) | – |
+| Offline erfassen, später automatisch abgleichen | ✓ | ✓ (Zwischenspeicher) |
+
+**Abgleich:** Es wird nie die ganze Datei überschrieben. Jede Fahrt wird einzeln zusammengeführt
+(die jüngere Änderung gewinnt), Löschungen werden übertragen. Offline erfasste Fahrten
+ohne Kilometer werden nachberechnet, sobald ein Gerät wieder online ist („km folgen“).
+Details: [`docs/DATENFORMAT.md`](docs/DATENFORMAT.md).
 
 ---
 
-## Voraussetzungen
+## Einrichtung
 
-- Mac mit **Xcode 16** oder neuer
-- **macOS 14** (Sonoma) bzw. **iOS 17** oder neuer auf den Geräten
-- **Apple Developer Program** (99 €/Jahr) – nötig für **iCloud-Sync** und das gemeinsame Daten-Fach für das **Widget** (App Group).
-  Mit einem kostenlosen Apple-Account läuft die App nur lokal ohne Sync (siehe unten).
-- [XcodeGen](https://github.com/yonaskolb/XcodeGen) zum Erzeugen des Xcode-Projekts
+### 1 · Mac-App (ca. 10 Minuten)
 
-## Einrichtung (einmalig, ca. 10 Minuten)
+Voraussetzungen: Mac mit **macOS 14** oder neuer, **Xcode** (kostenlos im App Store), OneDrive-App angemeldet.
 
 ```bash
-# 1. XcodeGen installieren (Homebrew)
-brew install xcodegen
-
-# 2. Repository holen
-git clone <repo-url> Business-Miles && cd Business-Miles
+brew install xcodegen            # einmalig (https://brew.sh)
+git clone https://github.com/ziege1988/Business-Miles-.git
+cd Business-Miles-
 ```
 
-3. In **`project.yml`** ganz oben zwei Werte eintragen:
+1. Xcode öffnen → *Settings → Accounts* → mit deiner **normalen Apple-ID** anmelden (kostenlos).
+   Dort steht unter „Team“ dein *Personal Team* – die 10-stellige Team-ID findest du z. B. im
+   Schlüsselbund unter „Apple Development: …“ (Feld „Organisationseinheit“).
+2. In **`project.yml`** oben eintragen:
    ```yaml
-   BUNDLE_ID_PREFIX: de.deinefirma      # eigene umgekehrte Domain
-   DEVELOPMENT_TEAM: ABCDE12345         # Team-ID: developer.apple.com → Account → Membership
+   BUNDLE_ID_PREFIX: de.czfotografie     # beliebige eigene Kennung
+   DEVELOPMENT_TEAM: ABCDE12345          # deine Team-ID
    ```
-4. Projekt erzeugen und öffnen:
+3. Projekt erzeugen und starten:
    ```bash
    xcodegen generate
-   open BusinessMiles.xcodeproj
+   open BusinessMiles.xcodeproj         # dann ⌘R
    ```
-5. In Xcode einmal je App-Target (**BusinessMiles-iOS**, **BusinessMiles-macOS**) unter
-   *Signing & Capabilities* prüfen, dass das Team gesetzt ist. Xcode legt iCloud-Container
-   (`iCloud.<prefix>.businessmiles`) und App Group automatisch an.
-6. Schema **BusinessMiles-macOS** → *Run* (⌘R) startet die Mac-App.
-   Schema **BusinessMiles-iOS** mit angeschlossenem iPhone → *Run* installiert die Handy-App.
-7. Widget hinzufügen: Mac → Mitteilungszentrale → „Widgets bearbeiten“ · iPhone → Home-Bildschirm lange drücken → „+“.
+   Falls Xcode beim Signieren meckert: bei beiden Targets (*BusinessMiles*, *BusinessMilesWidget*)
+   unter *Signing & Capabilities* als Team dein *Personal Team* auswählen.
+4. Beim ersten Start oben **„Ordner wählen …“** → in der Seitenleiste *OneDrive* → Ordner **`Business-Miles`** auswählen.
+5. Empfehlung: Im Finder Rechtsklick auf `Business-Miles` → **„Immer auf diesem Gerät behalten“**.
+6. Damit die App dauerhaft im Programme-Ordner liegt: *Product → Archive → Distribute App → Copy App*
+   und `Business Miles.app` nach *Programme* ziehen.
+7. Widget: Mitteilungszentrale öffnen → „Widgets bearbeiten“ → *Business Miles*.
 
-> **Sync testen:** Auf beiden Geräten mit derselben Apple-ID in iCloud angemeldet sein.
-> Neue Fahrten erscheinen nach wenigen Sekunden bis Minuten auf dem anderen Gerät.
-> In den Einstellungen der App zeigt „Synchronisation“, ob iCloud aktiv ist.
+### 2 · Web-App veröffentlichen (GitHub Pages, einmalig)
 
-### Ohne bezahlten Developer-Account
+1. **Repository öffentlich machen:** GitHub → *Settings → General → Danger Zone → Change visibility → Public*.
+   Öffentlich ist nur der Programmcode – deine Fahrten liegen ausschließlich in deinem OneDrive.
+   (GitHub Pages ist im kostenlosen Tarif nur für öffentliche Repositories verfügbar.)
+2. *Settings → Pages → Build and deployment → Source:* **GitHub Actions**.
+3. Den Stand auf den Branch `main` bringen (Pull Request zusammenführen). Der Workflow
+   „Web-App veröffentlichen“ läuft dann automatisch.
+4. Adresse der Web-App: **https://ziege1988.github.io/Business-Miles-/**
 
-In `project.yml` bei beiden App-Targets die Einträge unter `entitlements → properties` für
-`icloud-*`, `aps-environment` und `application-groups` entfernen. Die App speichert dann nur lokal,
-und das Widget zeigt keine Daten. Hinweis: Mit kostenlosem Account installierte iPhone-Apps
-laufen nur 7 Tage und müssen dann neu aus Xcode installiert werden.
+### 3 · Microsoft-Anmeldung einrichten (ca. 5 Minuten, kostenlos)
 
-### Vor einer Veröffentlichung (TestFlight / App Store)
+Damit die Web-App auf dein OneDrive zugreifen darf, wird sie einmal in deinem Microsoft-365-Konto registriert:
 
-Im [CloudKit Dashboard](https://icloud.developer.apple.com) das Schema von *Development* nach
-*Production* übernehmen („Deploy Schema Changes“), sonst synchronisieren veröffentlichte Builds nicht.
+1. [entra.microsoft.com](https://entra.microsoft.com) mit deinem Microsoft-365-Konto öffnen.
+2. *Identität → Anwendungen → App-Registrierungen →* **Neue Registrierung**
+   - Name: `Business Miles`
+   - Unterstützte Kontotypen: **Nur Konten in diesem Organisationsverzeichnis (Einzelner Mandant)**
+   - Umleitungs-URI: Plattform **Single-Page-Anwendung (SPA)**, Adresse
+     `https://ziege1988.github.io/Business-Miles-/` (genau so, mit `/` am Ende)
+   - → **Registrieren**
+3. Auf der Übersichtsseite zwei Werte notieren:
+   **Anwendungs-ID (Client)** und **Verzeichnis-ID (Mandant)**.
+4. *API-Berechtigungen → Berechtigung hinzufügen → Microsoft Graph → Delegierte Berechtigungen →*
+   **Files.ReadWrite** hinzufügen. Danach **„Administratorzustimmung für … erteilen“** klicken.
+5. Die beiden Werte in [`web/js/config.js`](web/js/config.js) bei `clientId` und `tenantId` eintragen
+   (oder Claude schicken). Beide Werte sind nicht geheim.
+
+### 4 · Auf dem iPhone
+
+1. In **Safari** `https://ziege1988.github.io/Business-Miles-/` öffnen.
+2. *Teilen* → **„Zum Home-Bildschirm“**.
+3. App vom Home-Bildschirm starten → **Anmelden** → mit dem Microsoft-365-Konto anmelden.
+4. Fertig – der grüne Punkt oben zeigt „Mit OneDrive synchronisiert“.
+
+> Microsoft verlangt bei Web-Apps etwa einmal täglich eine kurze Bestätigung der Anmeldung;
+> die App leitet dann automatisch kurz zur Microsoft-Seite weiter. Fahrten bleiben dabei erhalten.
 
 ---
 
 ## Hinweise zur Steuer
 
 - Der Export enthält je Fahrt: **Datum, Kunde/Geschäftspartner, Anlass, Start-, Ziel- und Rückfahrtadresse,
-  Hin-/Rück-/Gesamt-km und Betrag**, dazu Monats- und Gesamtsummen sowie Name, Anschrift,
-  Steuernummer, Fahrzeug, Kennzeichen und den angesetzten km-Satz.
-- Voreingestellt sind die Pauschalen für betrieblich veranlasste Fahrten mit privatem Fahrzeug:
-  **0,30 €/km (Pkw)** bzw. **0,20 €/km (Motorrad/Motorroller)**. Der Satz ist änderbar.
+  Hin-/Rück-/Gesamt-km und Betrag**, dazu Monats- und Gesamtsummen, Name, Anschrift, Steuernummer,
+  Fahrzeug, Kennzeichen, km-Satz sowie Felder für Ort, Datum und Unterschrift.
+- Voreingestellt: **0,30 €/km (Pkw)** bzw. **0,20 €/km (Motorrad/Motorroller)** für betrieblich
+  veranlasste Fahrten mit dem Privatfahrzeug. Der Satz ist änderbar.
 - Die Startadresse wird beim Speichern **in jede Fahrt kopiert** – ein späterer Umzug verändert alte Einträge nicht.
-- Die App ersetzt **kein ordnungsgemäßes Fahrtenbuch** (z. B. zur Widerlegung der 1-%-Regelung beim
-  Firmenwagen; dafür wären u. a. Kilometerstände und Unveränderbarkeit nötig). Im Zweifel mit der
-  Steuerberatung abstimmen.
-- Die km stammen aus der Routenberechnung von Apple Maps (empfohlene Route) und können abweichen –
-  bei Umwegen bitte manuell anpassen.
+- Kilometer stammen aus der Routenberechnung (Mac: Apple Karten, iPhone: OpenStreetMap) und können
+  sich zwischen den Geräten leicht unterscheiden. Bei Umwegen bitte manuell anpassen.
+- Im Zweifel mit der Steuerberatung abstimmen.
 
 ---
 
 ## Aufbau
 
 ```
-project.yml                  XcodeGen-Projekt (4 Targets: App + Widget für iOS und macOS)
-Sources/Core/                Gemeinsam für App und Widget: Farben, Logo, Formatierung, Widget-Daten
+project.yml                 XcodeGen-Projekt: Mac-App + Widget
+Sources/Core/               Gemeinsam für App und Widget: Farben, Logo, Formatierung, Widget-Daten
 Sources/App/
-  BusinessMilesApp.swift     Einstieg, Start-Popup, Menübefehle
-  Models/                    Trip, UserProfile (SwiftData, CloudKit-kompatibel), AddressValue
-  Persistence/               Container (iCloud → lokal → Speicher), Widget-Aktualisierung
-  Services/                  Adressvorschläge, PLZ→Ort, Routen-km (MapKit)
-  Logic/                     Gruppierung nach Jahr/Monat
-  Views/                     Hauptansicht, Jahres-Kacheln, Editor, Einstellungen, Export
-  Export/                    XLSX-Writer (inkl. ZIP), PDF-/Bildseiten, Speichern/Teilen
-Sources/Widget/              WidgetKit-Erweiterung (klein/mittel)
-Resources/Assets.xcassets    App-Icon, Akzentfarbe
-tools/make_icons.py          Erzeugt die App-Icons neu (python3 tools/make_icons.py)
+  Models/                   Trip, AppSettings, DataFile (Dateiformat + Zusammenführung)
+  Persistence/TripStore     OneDrive-Datei lesen/zusammenführen/schreiben, Offline-Kopie, Konfliktkopien
+  Services/                 Adressvorschläge, Routen-km (MapKit), PLZ-Tabelle
+  Views/                    Hauptansicht, Jahres-Kacheln, Editor, Einstellungen, Export
+  Export/                   XLSX-Writer (inkl. ZIP), PDF-Seiten
+Sources/Widget/             WidgetKit-Erweiterung
+Resources/plz.json          PLZ → Ort (8.168 Postleitzahlen)
+web/                        iPhone-Web-App (ohne Build-Schritt)
+  js/model.js               Dateiformat + Zusammenführung (identisch zur Mac-App)
+  js/store.js               Zwischenspeicher + Abgleich mit OneDrive
+  js/graph.js               Microsoft-Anmeldung + OneDrive-Zugriff
+  js/geo.js                 PLZ, Straßenvorschläge, Routen
+  js/exports.js             Excel, PDF, Bilder
+  sw.js                     Offline-Betrieb
+tests/                      Tests (node --test tests/model.test.mjs)
+tools/                      Icons und PLZ-Tabelle neu erzeugen
 ```
 
-**Technik:** SwiftUI · SwiftData + CloudKit · MapKit · WidgetKit · Swift Charts — keine Fremdbibliotheken,
-keine Server, keine API-Schlüssel.
+**Drittanbieter:** MSAL.js (MIT), jsPDF + AutoTable (MIT) liegen unter `web/vendor/`.
+PLZ-Daten © OpenStreetMap-Mitwirkende (ODbL), aufbereitet von suche-postleitzahl.org.
+Adressen/Routen auf dem iPhone: Photon (komoot), Nominatim, OSRM/FOSSGIS – kostenlose
+OpenStreetMap-Dienste für moderate private Nutzung.
