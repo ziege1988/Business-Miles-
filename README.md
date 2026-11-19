@@ -114,7 +114,7 @@ tests/                      Tests (node --test tests/model.test.mjs)
 tools/                      Icons und PLZ-Tabelle neu erzeugen
 ```
 
-**Drittanbieter:** MSAL.js (MIT), jsPDF + AutoTable (MIT) liegen unter `web/vendor/`.
+**Drittanbieter:** MSAL.js v3 (MIT; v3 statt v4, weil v4 die Anmeldung beim Schließen der App verwirft), jsPDF + AutoTable (MIT) liegen unter `web/vendor/`.
 PLZ-Daten © OpenStreetMap-Mitwirkende (ODbL), aufbereitet von suche-postleitzahl.org.
 Adressen/Routen auf dem iPhone: Photon (komoot), Nominatim, OSRM/FOSSGIS – kostenlose
 OpenStreetMap-Dienste für moderate private Nutzung.

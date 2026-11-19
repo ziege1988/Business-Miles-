@@ -1,6 +1,6 @@
 // Service Worker: hält die App offline verfügbar.
 // Bei jeder Änderung an den Dateien VERSION erhöhen, damit iPhones die neue Fassung laden.
-const VERSION = "bm-v5";
+const VERSION = "bm-v6";
 const SHELL = [
   "./", "index.html", "manifest.webmanifest", "css/app.css",
   "js/app.js", "js/config.js", "js/exports.js", "js/format.js", "js/geo.js", "js/graph.js", "js/model.js", "js/store.js",

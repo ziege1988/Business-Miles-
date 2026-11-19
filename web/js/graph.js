@@ -1,4 +1,11 @@
 // Microsoft-Anmeldung (MSAL) und Zugriff auf die Datei in OneDrive (Microsoft Graph).
+//
+// Dauerhafte Anmeldung:
+// - MSAL v3 (web/vendor) speichert die Anmeldung im localStorage. (MSAL v4 verschlüsselt sie mit einem
+//   Schlüssel, der beim Schließen der App verfällt – dann müsste man sich bei jedem Start neu anmelden.)
+// - Microsoft lässt Web-Apps höchstens 24 Stunden ohne erneute Anmeldung. Danach leitet die App
+//   selbstständig zu Microsoft weiter (mit gemerktem Konto) – ohne Tippen, solange dort
+//   „Angemeldet bleiben“ aktiv ist.
 import { CONFIG } from "./config.js";
 
 const SCOPES = ["Files.ReadWrite", "User.Read"];
@@ -6,6 +13,15 @@ const GRAPH = "https://graph.microsoft.com/v1.0";
 
 let pca = null;
 let account = null;
+const USER_KEY = "bm.msal.user";
+
+/** Zuletzt angemeldetes Konto (für die automatische Neuanmeldung). */
+export const rememberedUser = () => {
+  try { return localStorage.getItem(USER_KEY) || ""; } catch { return ""; }
+};
+const rememberUser = (acc) => {
+  try { if (acc?.username) localStorage.setItem(USER_KEY, acc.username); } catch { /* egal */ }
+};
 
 export class LoginRequiredError extends Error {
   constructor() { super("Anmeldung erforderlich"); this.name = "LoginRequiredError"; }
@@ -38,17 +54,31 @@ export async function init() {
     console.warn("Anmeldung abgebrochen oder fehlgeschlagen", e);
   }
   account = account || pca.getActiveAccount() || pca.getAllAccounts()[0] || null;
-  if (account) pca.setActiveAccount(account);
+  if (account) {
+    pca.setActiveAccount(account);
+    rememberUser(account);
+  }
   return account;
+}
+
+/** Erneute Anmeldung ohne Kontoauswahl – Microsoft erkennt das Konto und meldet meist direkt an. */
+export async function reauthenticate() {
+  if (!pca) return;
+  const loginHint = account?.username || rememberedUser() || undefined;
+  if (account) await pca.acquireTokenRedirect({ scopes: SCOPES, account, loginHint });
+  else await pca.loginRedirect({ scopes: SCOPES, loginHint });
 }
 
 export async function login() {
   if (!pca) throw new Error("Microsoft-Anmeldung ist nicht eingerichtet.");
-  await pca.loginRedirect({ scopes: SCOPES, prompt: "select_account" });
+  const loginHint = rememberedUser();
+  // Bekanntes Konto: ohne Kontoauswahl; sonst Auswahl anzeigen
+  await pca.loginRedirect(loginHint ? { scopes: SCOPES, loginHint } : { scopes: SCOPES, prompt: "select_account" });
 }
 
 export async function logout() {
   if (!pca || !account) return;
+  try { localStorage.removeItem(USER_KEY); } catch { /* egal */ }
   await pca.logoutRedirect({ account });
 }
 
@@ -63,7 +93,7 @@ async function accessToken(interactive) {
     return r.accessToken;
   } catch (e) {
     if (e instanceof window.msal.InteractionRequiredAuthError || e?.name === "InteractionRequiredAuthError") {
-      if (interactive) await pca.acquireTokenRedirect({ scopes: SCOPES, account });
+      if (interactive) await pca.acquireTokenRedirect({ scopes: SCOPES, account, loginHint: account.username });
       throw new LoginRequiredError();
     }
     throw e;

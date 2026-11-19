@@ -164,5 +164,7 @@ xattr -dr com.apple.quarantine "/Applications/Business Miles.app"
 5. Auf **Anmelden** tippen und mit dem Microsoft-365-Konto anmelden.
 6. ✅ Oben steht **„Mit OneDrive synchronisiert“** mit grünem Punkt.
 
-> Microsoft verlangt bei Web-Apps etwa einmal täglich eine kurze Bestätigung der Anmeldung.
-> Die App leitet dann automatisch kurz zur Microsoft-Seite weiter – Fahrten gehen dabei nicht verloren.
+> **Angemeldet bleiben:** Bei der Microsoft-Anmeldung die Frage „Angemeldet bleiben?“ mit **Ja** beantworten.
+> Die App bleibt dann angemeldet, auch wenn sie geschlossen wird. Microsoft verlangt bei Web-Apps etwa
+> alle 24 Stunden eine Erneuerung – die App leitet dafür automatisch kurz zu Microsoft weiter und zurück,
+> ohne dass du etwas tippen musst. Fahrten gehen dabei nicht verloren.

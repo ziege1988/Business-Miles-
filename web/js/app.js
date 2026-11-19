@@ -697,14 +697,22 @@ async function start() {
   render();
   await store.sync();
 
-  // Abgelaufene Sitzung: einmalig automatisch zur Microsoft-Anmeldung (ohne Endlosschleife)
-  if (store.status === "login" && graph.getAccount() && navigator.onLine) {
-    const last = Number(sessionStorage.getItem("bm.autoLogin") || 0);
+  // Anmeldung abgelaufen, Konto aber bekannt: automatisch kurz zu Microsoft und zurück
+  // (ohne Tippen). Schutz vor Endlosschleife: höchstens alle 2 Minuten.
+  if (store.status === "login" && navigator.onLine && (graph.getAccount() || graph.rememberedUser())) {
+    let last = 0;
+    try { last = Number(localStorage.getItem("bm.autoLogin") || 0); } catch { /* egal */ }
     if (Date.now() - last > 120000) {
-      sessionStorage.setItem("bm.autoLogin", String(Date.now()));
-      store.sync({ interactive: true });
+      try { localStorage.setItem("bm.autoLogin", String(Date.now())); } catch { /* egal */ }
+      showReauthHint();
+      graph.reauthenticate().catch((e) => console.warn("Automatische Anmeldung", e));
     }
   }
+}
+
+/** Kurzer Hinweis, falls die automatische Weiterleitung einen Moment dauert. */
+function showReauthHint() {
+  toast("Anmeldung wird erneuert …", 4000);
 }
 
 start();
