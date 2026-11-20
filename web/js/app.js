@@ -1,7 +1,7 @@
 // Business Miles – Web-App fürs iPhone.
 import * as fmt from "./format.js";
 import {
-  newTrip, emptyAddress, normalizeAddress, singleLine, isUsable, totalKm, amount, tripTitle,
+  newTrip, emptyAddress, normalizeAddress, singleLine, placeLine, isUsable, totalKm, amount, tripTitle,
   yearSummaries, VEHICLE_TYPES, tripRate, timeRange,
 } from "./model.js";
 import { store } from "./store.js";
@@ -17,6 +17,7 @@ const ICON = {
   map: '<svg viewBox="0 0 24 24"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14M15 6v14"/></svg>',
   table: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></svg>',
   doc: '<svg viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>',
+  search: '<svg viewBox="0 0 24 24" style="width:18px;height:18px;color:var(--muted)"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>',
   photo: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-8 8"/></svg>',
 };
 
@@ -105,7 +106,7 @@ function tripRow(t, rate) {
   return `<button class="trip" data-trip="${esc(t.id)}">
     <div class="day"><small>${fmt.weekday(t.date)}</small><b>${d}</b></div>
     <div class="info"><div class="t">${esc(tripTitle(t))}</div>
-      <div class="s">${esc(singleLine(t.destination))}</div>
+      <div class="s">${esc(placeLine(t.destination))}</div>
       ${purpose ? `<div class="p">${esc(purpose)}</div>` : ""}</div>
     <div class="km">${kmCell}<small>${t.returnEnabled ? "hin & zurück" : "einfach"}</small><small>${fmt.euro(amount(t, rate))}</small></div>
   </button>`;
@@ -177,14 +178,21 @@ const parseRate = (v, fallback) => {
 // Adressfeld mit PLZ → Ort und Straßenvorschlägen
 // ===========================================================================
 
-function addressField(host, initial, onChange) {
+function addressField(host, initial, onChange, opts = {}) {
   let addr = normalizeAddress(initial);
   let cityAuto = false;
   let abort = null;
   let timer = null;
+  const withPlaces = Boolean(opts.placeSearch);
 
   host.innerHTML = `
+    ${withPlaces ? `
+    <div class="fields place-search"><div class="field">${ICON.search}
+      <input class="a-search" type="search" enterkeyhint="search" autocomplete="off"
+        placeholder="Lokalität oder Adresse suchen, z. B. Café Fulda"></div></div>
+    <ul class="suggestions a-psugg" hidden></ul>` : ""}
     <div class="fields">
+      ${withPlaces ? `<div class="field"><input class="a-name" placeholder="Lokalität / Firma (optional)" autocomplete="off"></div>` : ""}
       <div class="row-split">
         <div class="field plz"><input class="a-plz" inputmode="numeric" maxlength="5" placeholder="PLZ" autocomplete="postal-code"></div>
         <div class="field"><input class="a-city" placeholder="Ort" autocomplete="address-level2"></div>
@@ -196,10 +204,59 @@ function addressField(host, initial, onChange) {
   const plz = $(".a-plz", host), city = $(".a-city", host), street = $(".a-street", host);
   const cities = $(".a-cities", host), sugg = $(".a-sugg", host);
 
-  const fill = () => { plz.value = addr.postalCode; city.value = addr.city; street.value = addr.street; };
+  const nameInput = $(".a-name", host);
+  const fill = () => {
+    plz.value = addr.postalCode; city.value = addr.city; street.value = addr.street;
+    if (nameInput) nameInput.value = addr.name || "";
+  };
   fill();
   const changed = () => onChange && onChange();
   const clearCoords = () => { addr.lat = null; addr.lon = null; };
+
+  // --- Freie Suche nach Lokalitäten („Café Sek Sol Fulda“) ---
+  if (withPlaces) {
+    const search = $(".a-search", host), psugg = $(".a-psugg", host);
+    let pAbort = null, pTimer = null;
+    search.addEventListener("input", () => {
+      clearTimeout(pTimer);
+      const query = search.value.trim();
+      if (query.length < 3) { psugg.hidden = true; return; }
+      pTimer = setTimeout(async () => {
+        if (pAbort) pAbort.abort();
+        pAbort = new AbortController();
+        try {
+          const list = await geo.searchPlaces(query, store.settings.home, pAbort.signal);
+          if (document.activeElement !== search) return;
+          psugg.innerHTML = list.length
+            ? list.map((p, i) => `<li><button type="button" data-p="${i}"><b>${esc(p.name || p.street || p.city)}</b>
+                <small>${esc([p.category, p.name ? p.street : "", [p.postalCode, p.city].filter(Boolean).join(" ")].filter(Boolean).join(" · "))}</small></button></li>`).join("")
+            : `<li><button type="button" disabled><small>Nichts gefunden – Adresse unten von Hand eingeben.</small></button></li>`;
+          psugg.hidden = false;
+          psugg._list = list;
+        } catch {
+          if (!navigator.onLine) {
+            psugg.innerHTML = `<li><button type="button" disabled><small>Offline – Suche nicht möglich.</small></button></li>`;
+            psugg.hidden = false;
+          }
+        }
+      }, 350);
+    });
+    psugg.addEventListener("pointerdown", (e) => {
+      const b = e.target.closest("[data-p]");
+      if (!b) return;
+      e.preventDefault();
+      const p = psugg._list[Number(b.dataset.p)];
+      addr = normalizeAddress({ name: p.name, street: p.street, postalCode: p.postalCode, city: p.city, lat: p.lat, lon: p.lon });
+      cityAuto = false;
+      fill();
+      search.value = "";
+      psugg.hidden = true;
+      search.blur();
+      changed();
+    });
+    search.addEventListener("blur", () => setTimeout(() => { psugg.hidden = true; }, 150));
+    nameInput.addEventListener("input", () => { addr.name = nameInput.value; changed(); });
+  }
 
   plz.addEventListener("input", async () => {
     plz.value = plz.value.replace(/\D/g, "").slice(0, 5);
@@ -263,7 +320,7 @@ function addressField(host, initial, onChange) {
   street.addEventListener("blur", () => setTimeout(() => { sugg.hidden = true; }, 150));
 
   return {
-    get: () => ({ ...addr, street: street.value.trim(), postalCode: plz.value.trim(), city: city.value.trim() }),
+    get: () => ({ ...addr, name: nameInput ? nameInput.value.trim() : addr.name, street: street.value.trim(), postalCode: plz.value.trim(), city: city.value.trim() }),
     set: (value) => { addr = normalizeAddress(value); cityAuto = false; fill(); cities.hidden = true; sugg.hidden = true; changed(); },
   };
 }
@@ -307,7 +364,7 @@ function openEditor(mode, source) {
       <div class="group"><label>Zieladresse</label>
         ${!editing && recent.length ? `<div class="chips e-recent">${recent.map((r) => `<button type="button" class="chip" data-recent="${esc(r.id)}"><b>${esc(tripTitle(r))}</b><small>${esc(r.destination.city)}</small></button>`).join("")}</div>` : ""}
         <div class="e-dest"></div>
-        <p class="hint">PLZ eingeben – der Ort wird ergänzt. Beim Tippen der Straße erscheinen Vorschläge.</p>
+        <p class="hint">Lokalität suchen (z. B. „Café Sek Sol Fulda“) – Name und Adresse werden komplett übernommen. Oder PLZ eingeben, der Ort wird ergänzt.</p>
       </div>
       <div class="group"><label>Start</label>
         <div class="segmented e-startseg"><button type="button" data-v="home">Startadresse</button><button type="button" data-v="other">Andere Adresse</button></div>
@@ -351,7 +408,7 @@ function openEditor(mode, source) {
   let calcSeq = 0;
   let calcTimer = null;
 
-  const dest = addressField(q(".e-dest"), t.destination, () => scheduleCalc());
+  const dest = addressField(q(".e-dest"), t.destination, () => scheduleCalc(), { placeSearch: true });
   const startField = addressField(q(".e-start"), t.startUsesHome ? emptyAddress() : t.start, () => scheduleCalc());
   const retField = addressField(q(".e-ret"), t.returnUsesHome ? emptyAddress() : t.returnTo, () => scheduleCalc());
 

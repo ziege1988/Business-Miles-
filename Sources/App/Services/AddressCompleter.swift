@@ -15,10 +15,14 @@ final class AddressCompleter: NSObject, ObservableObject {
 
     private let completer = MKLocalSearchCompleter()
 
-    override init() {
+    private let includesPlaces: Bool
+
+    /// includesPlaces: auch Lokalitäten (Cafés, Firmen, Hotels …) vorschlagen
+    init(includesPlaces: Bool = false) {
+        self.includesPlaces = includesPlaces
         super.init()
         completer.delegate = self
-        completer.resultTypes = .address
+        completer.resultTypes = includesPlaces ? [.pointOfInterest, .address] : .address
         // Suche auf Deutschland ausrichten (Mittelpunkt ca. Kassel, ~900 km Ausdehnung)
         completer.region = MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 51.16, longitude: 10.45),
@@ -39,6 +43,16 @@ final class AddressCompleter: NSObject, ObservableObject {
         completer.queryFragment = query
     }
 
+    /// Freie Suche („Café Sek Sol Fulda“)
+    func search(_ text: String) {
+        let q = text.trimmingCharacters(in: .whitespaces)
+        guard q.count >= 3 else {
+            clear()
+            return
+        }
+        completer.queryFragment = q
+    }
+
     func clear() {
         completer.cancel()
         suggestions = []
@@ -47,7 +61,7 @@ final class AddressCompleter: NSObject, ObservableObject {
     /// Löst einen Vorschlag in eine vollständige Adresse inkl. Koordinaten auf.
     func resolve(_ suggestion: AddressSuggestion) async -> AddressValue? {
         let request = MKLocalSearch.Request(completion: suggestion.completion)
-        request.resultTypes = .address
+        request.resultTypes = includesPlaces ? [.pointOfInterest, .address] : .address
         guard let response = try? await MKLocalSearch(request: request).start(),
               let item = response.mapItems.first
         else { return nil }
@@ -57,9 +71,12 @@ final class AddressCompleter: NSObject, ObservableObject {
         if let number = pm.subThoroughfare, !number.isEmpty {
             street += " " + number
         }
-        var address = AddressValue(street: street,
+        var address = AddressValue(street: pm.thoroughfare == nil && item.pointOfInterestCategory != nil ? "" : street,
                                    postalCode: pm.postalCode ?? "",
                                    city: pm.locality ?? "")
+        if item.pointOfInterestCategory != nil, let name = item.name {
+            address.name = name
+        }
         address.setCoordinate(pm.coordinate)
         return address
     }

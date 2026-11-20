@@ -18,6 +18,7 @@
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+[hidden] { display: none !important; }
 html, body { margin: 0; background: var(--bg); color: var(--ink); }
 body {
   font: 16px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
@@ -237,3 +238,8 @@ h1 { font: 700 28px/1.15 ui-rounded, -apple-system, sans-serif; margin: 8px 0 2p
 @media (min-width: 700px) {
   .stats { grid-template-columns: repeat(4, 1fr); }
 }
+
+.place-search { margin-bottom: 8px; }
+.place-search .field { gap: 8px; }
+.place-search input[type=search] { -webkit-appearance: none; appearance: none; }
+.suggestions button:disabled { cursor: default; }

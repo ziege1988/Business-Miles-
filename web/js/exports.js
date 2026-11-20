@@ -1,6 +1,6 @@
 // Export: Excel (.xlsx), PDF (A4 quer) und Bilder (PNG je Seite) – gleicher Aufbau wie in der Mac-App.
 import * as fmt from "./format.js";
-import { singleLine, totalKm, amount, tripRate, timeRange, VEHICLE_TYPES } from "./model.js";
+import { singleLine, placeLine, totalKm, amount, tripRate, timeRange, VEHICLE_TYPES } from "./model.js";
 
 // --- Berichtsdaten ---------------------------------------------------------
 
@@ -15,7 +15,7 @@ export function buildReport(summary, month, settings) {
         customer: t.customer,
         purpose: t.purpose,
         start: singleLine(t.start),
-        destination: singleLine(t.destination),
+        destination: placeLine(t.destination),
         returnEnabled: t.returnEnabled,
         returnTo: t.returnEnabled ? singleLine(t.returnTo) : "",
         outboundKm: t.outboundKm,

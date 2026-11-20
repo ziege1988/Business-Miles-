@@ -64,6 +64,57 @@ export async function suggestStreets(street, postalCode, city, signal) {
   return out.slice(0, 6);
 }
 
+const CATEGORY = {
+  cafe: "Café", restaurant: "Restaurant", bar: "Bar", pub: "Kneipe", biergarten: "Biergarten", fast_food: "Imbiss",
+  hotel: "Hotel", guest_house: "Pension", hostel: "Hostel", events_venue: "Veranstaltungsort", community_centre: "Gemeindezentrum",
+  church: "Kirche", place_of_worship: "Kirche", townhall: "Rathaus", castle: "Schloss", museum: "Museum", park: "Park",
+  school: "Schule", kindergarten: "Kita", hospital: "Krankenhaus", theatre: "Theater", stadium: "Stadion",
+  supermarket: "Supermarkt", bakery: "Bäckerei", hairdresser: "Friseur", car: "Autohaus", office: "Büro", company: "Firma",
+  city: "Stadt", town: "Stadt", village: "Ort", suburb: "Stadtteil",
+};
+
+/**
+ * Freie Suche nach Lokalitäten und Adressen („Café Sek Sol Fulda“).
+ * Ergebnis: [{ name, street, postalCode, city, lat, lon, category }]
+ * near: optionale Koordinaten zur Gewichtung (z. B. Startadresse).
+ */
+export async function searchPlaces(query, near, signal) {
+  const q = String(query || "").trim();
+  if (q.length < 3) return [];
+  let url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&lang=de&limit=10&bbox=${GERMANY_BBOX}`;
+  if (near && typeof near.lat === "number" && typeof near.lon === "number") url += `&lat=${near.lat}&lon=${near.lon}`;
+  const res = await fetch(url, { signal });
+  if (!res.ok) return [];
+  const data = await res.json();
+  const seen = new Set();
+  const out = [];
+  for (const f of data.features || []) {
+    const p = f.properties || {};
+    if (p.countrycode && p.countrycode !== "DE") continue;
+    // Lokalitäten haben einen Namen; reine Adressen (Haus/Straße/Ort) nicht bzw. nur den Straßen-/Ortsnamen.
+    // Hinweis: Photon liefert auch für Lokalitäten type "house" – deshalb über osm_key unterscheiden.
+    const isAddress = !p.name || p.osm_key === "place" || p.osm_key === "highway" || p.osm_key === "boundary";
+    const street = p.street
+      ? p.street + (p.housenumber ? ` ${p.housenumber}` : "")
+      : (p.type === "street" || p.osm_key === "highway" ? p.name || "" : "");
+    const item = {
+      name: !isAddress ? p.name || "" : "",
+      street,
+      postalCode: p.postcode || "",
+      city: placeCity(p) || (p.osm_key === "place" ? p.name || "" : ""),
+      lat: f.geometry?.coordinates?.[1] ?? null,
+      lon: f.geometry?.coordinates?.[0] ?? null,
+      category: CATEGORY[p.osm_value] || "",
+    };
+    if (!item.name && !item.street && !item.city) continue;
+    const key = `${item.name}|${item.street}|${item.city}`.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+  return out.slice(0, 7);
+}
+
 /** Koordinaten zu einer Adresse ({lat, lon}). */
 export async function geocode(addr) {
   if (typeof addr.lat === "number" && typeof addr.lon === "number") return { lat: addr.lat, lon: addr.lon };

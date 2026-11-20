@@ -107,7 +107,7 @@ struct ReportData {
             customer: trip.customer,
             purpose: trip.purpose,
             start: trip.start.singleLine,
-            destination: trip.destination.singleLine,
+            destination: trip.destination.displayLine,
             returnTo: trip.returnEnabled ? trip.returnTarget.singleLine : "",
             returnEnabled: trip.returnEnabled,
             outboundKm: trip.outboundKm,

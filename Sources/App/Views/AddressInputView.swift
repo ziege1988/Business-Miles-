@@ -3,6 +3,11 @@ import SwiftUI
 /// Adresseingabe: PLZ → Ort wird automatisch ergänzt (offline), Straßen werden vorgeschlagen.
 struct AddressInputView: View {
     @Binding var address: AddressValue
+    /// Zusätzlich Suchfeld für Lokalitäten (Café, Firma, Hotel …) und Feld für deren Namen
+    var placeSearch: Bool = false
+
+    @StateObject private var placeCompleter = AddressCompleter(includesPlaces: true)
+    @State private var placeQuery = ""
 
     @StateObject private var completer = AddressCompleter()
     @State private var cityAutoFilled = false
@@ -10,10 +15,23 @@ struct AddressInputView: View {
     @State private var lastPickedStreet: String? = nil
     @FocusState private var focusedField: Field?
 
-    private enum Field { case postalCode, city, street }
+    private enum Field { case place, postalCode, city, street }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if placeSearch {
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(Theme.secondaryText)
+                    TextField("Lokalität oder Adresse suchen", text: $placeQuery,
+                              prompt: Text("Lokalität oder Adresse suchen, z. B. Café Fulda"))
+                        .focused($focusedField, equals: .place)
+                }
+                if focusedField == .place, !placeCompleter.suggestions.isEmpty {
+                    suggestionList(placeCompleter.suggestions) { pickPlace($0) }
+                }
+                TextField("Lokalität / Firma", text: $address.name, prompt: Text("Lokalität / Firma (optional)"))
+            }
+
             HStack(spacing: 8) {
                 TextField("PLZ", text: $address.postalCode, prompt: Text("PLZ"))
                     .focused($focusedField, equals: .postalCode)
@@ -44,7 +62,7 @@ struct AddressInputView: View {
                 .focused($focusedField, equals: .street)
 
             if focusedField == .street, !completer.suggestions.isEmpty {
-                suggestionList
+                suggestionList(completer.suggestions) { pick($0) }
             }
         }
         .textFieldStyle(.roundedBorder)
@@ -65,6 +83,9 @@ struct AddressInputView: View {
         .onChange(of: address.city) { _, _ in
             if focusedField == .city { cityAutoFilled = false }
         }
+        .onChange(of: placeQuery) { _, newValue in
+            placeCompleter.search(newValue)
+        }
         // Straße → Vorschläge (Apple Maps)
         .onChange(of: address.street) { _, newValue in
             guard focusedField == .street else { return }
@@ -76,11 +97,12 @@ struct AddressInputView: View {
         }
     }
 
-    private var suggestionList: some View {
+    private func suggestionList(_ suggestions: [AddressSuggestion],
+                                onPick: @escaping (AddressSuggestion) -> Void) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(completer.suggestions) { suggestion in
+            ForEach(suggestions) { suggestion in
                 Button {
-                    pick(suggestion)
+                    onPick(suggestion)
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: "mappin.circle.fill")
@@ -101,7 +123,7 @@ struct AddressInputView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                if suggestion.id != completer.suggestions.last?.id {
+                if suggestion.id != suggestions.last?.id {
                     Divider()
                 }
             }
@@ -112,6 +134,21 @@ struct AddressInputView: View {
         )
     }
 
+    /// Lokalität übernehmen: Name, Straße, PLZ, Ort und Koordinaten auf einmal.
+    @MainActor
+    private func pickPlace(_ suggestion: AddressSuggestion) {
+        Task {
+            guard let resolved = await placeCompleter.resolve(suggestion) else { return }
+            lastPickedStreet = resolved.street
+            cityAutoFilled = false
+            cityChoices = []
+            address = resolved
+            placeQuery = ""
+            placeCompleter.clear()
+            focusedField = nil
+        }
+    }
+
     @MainActor
     private func pick(_ suggestion: AddressSuggestion) {
         Task {
@@ -119,7 +156,10 @@ struct AddressInputView: View {
             lastPickedStreet = resolved.street
             cityAutoFilled = false
             cityChoices = []
+            // Name einer zuvor gewählten Lokalität behalten
+            let name = address.name
             address = resolved
+            if address.name.isEmpty { address.name = name }
             completer.clear()
         }
     }

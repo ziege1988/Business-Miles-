@@ -9,12 +9,13 @@ export const VEHICLE_TYPES = {
 export const nowISO = () => new Date().toISOString();
 
 export function emptyAddress() {
-  return { street: "", postalCode: "", city: "", lat: null, lon: null };
+  return { name: "", street: "", postalCode: "", city: "", lat: null, lon: null };
 }
 
 export function normalizeAddress(a) {
   a = a || {};
   return {
+    name: String(a.name || ""),
     street: String(a.street || ""),
     postalCode: String(a.postalCode || ""),
     city: String(a.city || ""),
@@ -30,6 +31,11 @@ export function cityLine(a) {
 /** "Musterstraße 1, 80331 München" */
 export function singleLine(a) {
   return [String(a?.street || "").trim(), cityLine(a)].filter(Boolean).join(", ");
+}
+
+/** Mit Name der Lokalität: "Café Sek Sol, Bahnhofstraße 5, 36037 Fulda" */
+export function placeLine(a) {
+  return [String(a?.name || "").trim(), singleLine(a)].filter(Boolean).join(", ");
 }
 
 export function isUsable(a) {
@@ -159,7 +165,8 @@ export const amount = (t, defaultRate) => Math.round(totalKm(t) * tripRate(t, de
 export const timeRange = (t) =>
   t.departureTime && t.returnTime ? `${t.departureTime}–${t.returnTime}`
     : t.departureTime ? `ab ${t.departureTime}` : t.returnTime ? `bis ${t.returnTime}` : "";
-export const tripTitle = (t) => t.customer.trim() || t.destination.city || singleLine(t.destination) || "Fahrt";
+export const tripTitle = (t) =>
+  t.customer.trim() || t.destination.name || t.destination.city || singleLine(t.destination) || "Fahrt";
 
 /** Gruppiert sichtbare Fahrten nach Jahr → Monat. Das aktuelle Jahr ist immer enthalten. */
 export function yearSummaries(trips) {

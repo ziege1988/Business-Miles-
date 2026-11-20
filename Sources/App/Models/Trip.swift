@@ -85,6 +85,7 @@ struct Trip: Identifiable, Hashable {
     var title: String {
         let c = customer.trimmingCharacters(in: .whitespaces)
         if !c.isEmpty { return c }
+        if !destination.name.isEmpty { return destination.name }
         return destination.city.isEmpty ? destination.singleLine : destination.city
     }
 

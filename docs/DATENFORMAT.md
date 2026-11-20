@@ -32,7 +32,7 @@ dieselbe Datei. Damit gleichzeitige Änderungen nicht verloren gehen, wird **nie
       "customer": "Familie Berger",
       "purpose": "Hochzeitsreportage",
       "note": "",
-      "destination": { "street": "…", "postalCode": "…", "city": "…", "lat": null, "lon": null },
+      "destination": { "name": "Café Sek Sol", "street": "…", "postalCode": "…", "city": "…", "lat": null, "lon": null },
       "startUsesHome": true,
       "start": { "street": "…", "postalCode": "…", "city": "…" },
       "returnEnabled": true,
@@ -59,6 +59,9 @@ sobald ein Gerät wieder online ist (Mac oder iPhone, je nachdem, welches zuerst
 `ratePerKm` je Fahrt: der beim Speichern gültige Kilometersatz. Ändert sich der Satz in den
 Einstellungen, behalten bereits erfasste Fahrten ihren Satz. Fehlt das Feld (`null`), gilt der Satz
 aus den Einstellungen.
+
+`name` in Adressen: optionaler Name der Lokalität/Firma (aus der Lokalitätssuche oder von Hand).
+Erscheint in Listen und im Export vor der Adresse („Café Sek Sol, Friedrichstraße 7, 36037 Fulda“).
 
 `departureTime` / `returnTime`: optionale Uhrzeiten `HH:MM` (leer = nicht angegeben).
 

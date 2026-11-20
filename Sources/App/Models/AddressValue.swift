@@ -4,6 +4,8 @@ import CoreLocation
 /// Strukturierte Adresse für Eingabe, Routenberechnung und Datei (siehe docs/DATENFORMAT.md).
 /// Koordinaten gelten nur, solange die Adresse seit dem Geocoding nicht verändert wurde.
 struct AddressValue: Equatable, Hashable {
+    /// Name der Lokalität / Firma (optional), z. B. „Café Sek Sol“
+    var name: String = ""
     var street: String = ""
     var postalCode: String = ""
     var city: String = ""
@@ -26,7 +28,12 @@ struct AddressValue: Equatable, Hashable {
             .joined(separator: ", ")
     }
 
-    var isEmpty: Bool { singleLine.isEmpty }
+    /// Mit Name der Lokalität: "Café Sek Sol, Bahnhofstraße 5, 36037 Fulda"
+    var displayLine: String {
+        [name.trimmingCharacters(in: .whitespaces), singleLine].filter { !$0.isEmpty }.joined(separator: ", ")
+    }
+
+    var isEmpty: Bool { singleLine.isEmpty && name.isEmpty }
 
     /// Mindestens Ort oder PLZ – reicht für eine Routenberechnung.
     var isUsable: Bool {
@@ -48,11 +55,12 @@ struct AddressValue: Equatable, Hashable {
 
 extension AddressValue: Codable {
     private enum CodingKeys: String, CodingKey {
-        case street, postalCode, city, lat, lon
+        case name, street, postalCode, city, lat, lon
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
+        name = (try? c.decodeIfPresent(String.self, forKey: .name)) ?? ""
         street = (try? c.decodeIfPresent(String.self, forKey: .street)) ?? ""
         postalCode = (try? c.decodeIfPresent(String.self, forKey: .postalCode)) ?? ""
         city = (try? c.decodeIfPresent(String.self, forKey: .city)) ?? ""
@@ -63,6 +71,7 @@ extension AddressValue: Codable {
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(name, forKey: .name)
         try c.encode(street, forKey: .street)
         try c.encode(postalCode, forKey: .postalCode)
         try c.encode(city, forKey: .city)

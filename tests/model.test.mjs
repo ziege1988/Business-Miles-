@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
-import { mergeDocs, emptyDoc, newTrip, yearSummaries, sameContent, totalKm, normalizeDoc } from "../web/js/model.js";
+import { mergeDocs, emptyDoc, newTrip, yearSummaries, sameContent, totalKm, normalizeDoc, placeLine, tripTitle, normalizeTrip } from "../web/js/model.js";
 import { buildReport, makeXlsx } from "../web/js/exports.js";
 
 const trip = (over) => ({ ...newTrip(), date: "2026-11-18", outboundKm: 10, returnKm: 12, ...over });
@@ -63,4 +63,12 @@ test("Excel-Datei wird erzeugt", async () => {
   const buf = Buffer.from(await blob.arrayBuffer());
   writeFileSync(process.env.XLSX_OUT || "/tmp/bm-test.xlsx", buf);
   assert.equal(buf.readUInt32LE(0), 0x04034b50);
+});
+
+test("Lokalität: Name wird gespeichert und angezeigt", () => {
+  const t = normalizeTrip({ id: "p", date: "2026-11-20", destination: { name: "Café Sek Sol", street: "Friedrichstraße 7", postalCode: "36037", city: "Fulda" } });
+  assert.equal(placeLine(t.destination), "Café Sek Sol, Friedrichstraße 7, 36037 Fulda");
+  assert.equal(tripTitle(t), "Café Sek Sol");
+  // Mac-Datei ohne name-Feld bleibt lesbar
+  assert.equal(normalizeTrip({ destination: { city: "Fulda" } }).destination.name, "");
 });

@@ -27,7 +27,7 @@ struct TripRowView: View {
                     .font(.body.weight(.semibold))
                     .foregroundStyle(Theme.ink)
                     .lineLimit(1)
-                Text(trip.destination.singleLine)
+                Text(trip.destination.displayLine)
                     .font(.subheadline)
                     .foregroundStyle(Theme.secondaryText)
                     .lineLimit(1)

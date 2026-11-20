@@ -113,11 +113,11 @@ struct TripEditorView: View {
                     if !isEditing, trip.destination.isEmpty, !recentDestinations.isEmpty {
                         recentDestinationChips
                     }
-                    AddressInputView(address: $trip.destination)
+                    AddressInputView(address: $trip.destination, placeSearch: true)
                 } header: {
                     Text("Zieladresse")
                 } footer: {
-                    Text("PLZ eingeben – der Ort wird ergänzt. Beim Tippen der Straße erscheinen Vorschläge.")
+                    Text("Lokalität suchen (z. B. „Café Sek Sol Fulda“) – Name und Adresse werden komplett übernommen. Oder PLZ eingeben, der Ort wird ergänzt.")
                 }
 
                 Section("Start") {
