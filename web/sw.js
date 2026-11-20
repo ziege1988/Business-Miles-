@@ -1,8 +1,10 @@
 // Service Worker: hält die App offline verfügbar.
-// Bei jeder Änderung an den Dateien VERSION erhöhen, damit iPhones die neue Fassung laden.
-const VERSION = "bm-v7";
+// Version steht in version.js (BM_VERSION) – bei jeder Änderung dort erhöhen,
+// dann laden iPhones die neue Fassung.
+importScripts("version.js");
+const VERSION = `bm-v${self.BM_VERSION}`;
 const SHELL = [
-  "./", "index.html", "manifest.webmanifest", "css/app.css",
+  "./", "index.html", "manifest.webmanifest", "css/app.css", "version.js",
   "js/app.js", "js/config.js", "js/exports.js", "js/format.js", "js/geo.js", "js/graph.js", "js/model.js", "js/store.js",
   "vendor/msal-browser.min.js", "vendor/jspdf.umd.min.js", "vendor/jspdf.plugin.autotable.min.js",
   "data/plz.json", "icons/logo.svg", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png",

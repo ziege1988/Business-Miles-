@@ -584,6 +584,12 @@ function openSettings() {
             : `<button class="link" data-x="login">Mit Microsoft anmelden</button>`)
           : `<span class="unit">Siehe Anleitung (README) zur Einrichtung.</span>`}</div>
       </div></div>
+      <div class="group"><label>Version &amp; Updates</label><div class="fields">
+        <div class="field"><span>Installiert</span><span class="unit" style="margin-left:auto">Version ${esc(window.BM_VERSION ?? "?")} · ${esc(fmt.date(window.BM_RELEASED || ""))}</span></div>
+        <div class="field"><button class="link" data-x="update">Nach Updates suchen</button><span class="unit s-update-state" style="margin-left:auto"></span></div>
+      </div>
+      ${(window.BM_CHANGES || []).length ? `<p class="hint"><b>Neu in dieser Version:</b><br>${window.BM_CHANGES.map((c) => `• ${esc(c)}`).join("<br>")}</p>` : ""}
+      </div>
       <p class="hint" style="text-align:center">PLZ-Daten © OpenStreetMap-Mitwirkende (ODbL) · Routen: OSRM / FOSSGIS · Adressen: Photon / Nominatim</p>
     </div>`);
   const q = (sel) => $(sel, el);
@@ -622,7 +628,39 @@ function openSettings() {
     if (x === "login") graph.login();
     if (x === "logout") graph.logout();
     if (x === "sync") { closeSheet("#sheet-settings"); store.sync({ interactive: true }); }
+    if (x === "update") checkForUpdate(q(".s-update-state"));
   });
+}
+
+/** Lädt eine neue Fassung der Web-App, falls vorhanden, und startet neu. */
+async function checkForUpdate(label) {
+  const say = (t) => { if (label) label.textContent = t; };
+  if (!navigator.onLine) return say("Offline");
+  say("Suche …");
+  try {
+    const res = await fetch(`version.js?t=${Date.now()}`, { cache: "no-store" });
+    const text = await res.text();
+    const latest = Number((text.match(/BM_VERSION\s*=\s*(\d+)/) || [])[1] || 0);
+    if (latest > Number(window.BM_VERSION || 0)) {
+      say(`Version ${latest} wird geladen …`);
+      const reg = await navigator.serviceWorker?.getRegistration();
+      if (reg) {
+        await reg.update();
+        const sw = reg.installing || reg.waiting;
+        if (sw && sw.state !== "activated") {
+          await new Promise((resolve) => {
+            sw.addEventListener("statechange", () => sw.state === "activated" && resolve());
+            setTimeout(resolve, 8000);
+          });
+        }
+      }
+      location.reload();
+    } else {
+      say("Neueste Version ✓");
+    }
+  } catch {
+    say("Nicht erreichbar");
+  }
 }
 
 // ===========================================================================

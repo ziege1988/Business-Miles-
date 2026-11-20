@@ -34,6 +34,7 @@ struct RootView: View {
     var body: some View {
         HStack(spacing: 0) {
             VStack(spacing: 0) {
+                UpdateBanner()
                 if store.folderURL == nil { folderBanner }
                 YearDetailView(summary: selectedSummary,
                                rate: store.settings.ratePerKm,
@@ -79,6 +80,9 @@ struct RootView: View {
         }
         .onChange(of: WidgetSync.signature(of: store.trips), initial: true) {
             WidgetSync.update(with: store.trips)
+        }
+        .task {
+            if !ScreenshotMode.isActive { UpdateService.shared.checkIfDue() }
         }
         .onChange(of: router.newTripRequested) { _, requested in
             if requested {

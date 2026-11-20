@@ -36,6 +36,7 @@ jobs:
             -destination 'generic/platform=macOS' \
             -derivedDataPath build \
             CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             build 2>&1 | tee xcodebuild.log | grep -E "error:|warning: .*(deprecated)?|BUILD (SUCCEEDED|FAILED)" || true
           test -d "build/Build/Products/Release/Business Miles.app"
 
@@ -82,8 +83,12 @@ jobs:
         if: github.ref_name == github.event.repository.default_branch
         env:
           GH_TOKEN: ${{ github.token }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
+          # Release-Notizen = Commit-Nachricht ohne technische Zeilen
+          printf '%s\n' "$COMMIT_MESSAGE" | grep -v -E '^(Co-Authored-By|Claude-Session):' | sed 's/ \[screenshots\]//' > notes.txt
+          [ -s notes.txt ] || echo "Verbesserungen und Fehlerbehebungen" > notes.txt
           gh release create "mac-build-${{ github.run_number }}" Business-Miles-Mac.zip \
             --title "Business Miles für Mac – Build ${{ github.run_number }}" \
-            --notes "ZIP herunterladen, entpacken und „Business Miles“ in den Ordner Programme ziehen. Beim ersten Start: Systemeinstellungen → Datenschutz & Sicherheit → „Dennoch öffnen“." \
+            --notes-file notes.txt \
             --latest
