@@ -78,11 +78,11 @@ struct RootView: View {
         .sheet(isPresented: $showExport) {
             ExportSheet(summary: selectedSummary, settings: store.settings)
         }
-        .onChange(of: WidgetSync.signature(of: store.trips), initial: true) {
-            WidgetSync.update(with: store.trips)
-        }
         .task {
-            if !ScreenshotMode.isActive { UpdateService.shared.checkIfDue() }
+            if !ScreenshotMode.isActive {
+                UpdateService.shared.checkIfDue()
+                DesktopWidgetController.shared.start(store: store, router: router)
+            }
         }
         .onChange(of: router.newTripRequested) { _, requested in
             if requested {

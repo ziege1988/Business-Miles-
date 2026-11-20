@@ -1,7 +1,6 @@
 import Foundation
-import WidgetKit
 
-/// Schreibt die Kennzahlen für das Widget und stößt dessen Aktualisierung an.
+/// Berechnet die Kennzahlen für die Schreibtisch-Kachel.
 enum WidgetSync {
     static func signature(of trips: [Trip]) -> Int {
         var hasher = Hasher()
@@ -12,18 +11,6 @@ enum WidgetSync {
             hasher.combine(t.title)
         }
         return hasher.finalize()
-    }
-
-    static func update(with trips: [Trip]) {
-        var snapshot = Self.snapshot(for: trips)
-
-        var compareOld = WidgetSnapshot.load()
-        compareOld.updatedAt = .distantPast
-        guard compareOld != snapshot else { return }
-
-        snapshot.updatedAt = .now
-        snapshot.save()
-        WidgetCenter.shared.reloadAllTimelines()
     }
 
     static func snapshot(for trips: [Trip]) -> WidgetSnapshot {

@@ -1,6 +1,5 @@
 import SwiftUI
 import AppKit
-import WidgetKit
 
 /// Erzeugt Vorschaubilder der App mit Beispieldaten (für Doku und Kontrolle).
 /// Aufruf: `"Business Miles.app/Contents/MacOS/Business Miles" --screenshots <Ordner>`
@@ -48,8 +47,8 @@ enum ScreenshotMode {
 
         // Widget (klein + mittel)
         let snapshot = WidgetSync.snapshot(for: store.trips)
-        renderWidget(snapshot, family: .systemSmall, size: CGSize(width: 170, height: 170), to: dir.appendingPathComponent("widget-klein.png"))
-        renderWidget(snapshot, family: .systemMedium, size: CGSize(width: 364, height: 170), to: dir.appendingPathComponent("widget-mittel.png"))
+        renderWidget(snapshot, family: .small, size: CGSize(width: 170, height: 170), to: dir.appendingPathComponent("widget-klein.png"))
+        renderWidget(snapshot, family: .medium, size: CGSize(width: 364, height: 170), to: dir.appendingPathComponent("widget-mittel.png"))
 
         // Exporte
         let years = TripStatistics.years(from: store.trips)
@@ -84,8 +83,8 @@ enum ScreenshotMode {
     }
 
     @MainActor
-    private static func renderWidget(_ snapshot: WidgetSnapshot, family: WidgetFamily, size: CGSize, to url: URL) {
-        let content = MilesWidgetContent(entry: MilesEntry(date: .now, snapshot: snapshot), family: family, interactive: false)
+    private static func renderWidget(_ snapshot: WidgetSnapshot, family: TileSize, size: CGSize, to url: URL) {
+        let content = MilesWidgetContent(entry: MilesEntry(date: .now, snapshot: snapshot), family: family)
             .padding(16)
             .frame(width: size.width, height: size.height)
             .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color.white))

@@ -5,7 +5,7 @@
 Fahrten zum Kunden erfassen – mit automatischer Kilometerberechnung, Monats- und Jahressummen
 und einem steuertauglichen Export.
 
-- **Mac:** native App mit Widget
+- **Mac:** native App mit Schreibtisch-Widget
 - **iPhone:** Web-App auf dem Home-Bildschirm (funktioniert auch offline)
 - **Daten:** eine Datei in deinem **OneDrive-Ordner `Business-Miles`** – Mac und iPhone lesen und schreiben dieselbe Datei
 - **Kosten:** 0 € – kein Apple-Developer-Account, kein Server, keine API-Schlüssel
@@ -42,7 +42,7 @@ Mac-App und Widget: siehe [`docs/screenshots`](docs/screenshots) (werden automat
 | Kilometersatz frei einstellbar, je Fahrt gespeichert | ✓ | ✓ |
 | Optionale Uhrzeiten (Abfahrt/Rückkehr) | ✓ | ✓ |
 | Export als Bild für die Galerie | – | ✓ (in Fotos sichern) |
-| Widget | ✓ (klein + mittel) | – |
+| Schreibtisch-Widget (klein/mittel, verschiebbar, Autostart) | ✓ | – |
 | Offline erfassen, später automatisch abgleichen | ✓ | ✓ (Zwischenspeicher) |
 
 **Abgleich:** Es wird nie die ganze Datei überschrieben. Jede Fahrt wird einzeln zusammengeführt
@@ -101,7 +101,6 @@ Sources/App/
   Services/                 Adressvorschläge, Routen-km (MapKit), PLZ-Tabelle
   Views/                    Hauptansicht, Jahres-Kacheln, Editor, Einstellungen, Export
   Export/                   XLSX-Writer (inkl. ZIP), PDF-Seiten
-Sources/Widget/             WidgetKit-Erweiterung
 Resources/plz.json          PLZ → Ort (8.168 Postleitzahlen)
 web/                        iPhone-Web-App (ohne Build-Schritt)
   js/model.js               Dateiformat + Zusammenführung (identisch zur Mac-App)

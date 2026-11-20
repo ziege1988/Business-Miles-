@@ -141,7 +141,7 @@ Account bewusst nicht. Die App wird deshalb **einmalig** bestätigt, danach star
    zugreifen darf → **Erlauben**.
 8. Die App findet den Ordner `OneDrive › Business-Miles` automatisch. Falls nicht: oben auf
    **Ordner wählen …** klicken und ihn auswählen.
-9. Widget: Auf dem Schreibtisch mit Rechtsklick → **Widgets bearbeiten** → **Business Miles** suchen und hinzufügen.
+9. **Schreibtisch-Widget:** erscheint automatisch oben links auf dem Schreibtisch und lässt sich mit der Maus verschieben. Größe und Autostart: *Einstellungen → Schreibtisch-Widget*. Ein älteres, schwarzes Widget aus der Widget-Galerie bitte entfernen (Rechtsklick → „Widget entfernen“).
 
 **Plan B**, falls macOS meldet, die App sei *„beschädigt“*: Programm **Terminal** öffnen, diese
 Zeile hineinkopieren und Enter drücken – danach lässt sich die App normal öffnen:

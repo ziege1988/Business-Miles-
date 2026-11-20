@@ -1,25 +1,29 @@
-import WidgetKit
 import SwiftUI
 
-struct MilesEntry: TimelineEntry {
+/// Größe der Schreibtisch-Kachel
+enum TileSize: String, CaseIterable, Identifiable {
+    case small, medium
+    var id: String { rawValue }
+    var label: String { self == .small ? "Klein" : "Mittel" }
+    var contentSize: CGSize { self == .small ? CGSize(width: 170, height: 170) : CGSize(width: 364, height: 170) }
+}
+
+struct MilesEntry {
     let date: Date
     let snapshot: WidgetSnapshot
 }
 
-/// Inhalt des Widgets – liegt in Core, damit die App ihn auch für Vorschaubilder zeichnen kann.
+/// Inhalt der Schreibtisch-Kachel (Monats-/Jahres-km, letzte Fahrt, „Neue Fahrt“).
 struct MilesWidgetContent: View {
     let entry: MilesEntry
-    let family: WidgetFamily
-    /// false = als Bild zeichnen (Vorschaubild), dort kann kein Link dargestellt werden
-    var interactive: Bool = true
+    let family: TileSize
+    /// Aktion für den Knopf „Neue Fahrt“ (nil = Knopf nur anzeigen, z. B. im Vorschaubild)
+    var onNewTrip: (() -> Void)? = nil
 
-    /// macOS zeigt Schreibtisch-Widgets oft abgedunkelt/einfarbig („vibrant“) – dann Systemfarben statt fester Farben,
-    /// sonst wäre dunkle Schrift auf dunklem Grund unsichtbar.
-    @Environment(\.widgetRenderingMode) private var renderingMode
-    private var fullColor: Bool { renderingMode == .fullColor }
-    private var ink: Color { fullColor ? Theme.ink : .primary }
-    private var muted: Color { fullColor ? Theme.secondaryText : .secondary }
-    private var accentText: Color { fullColor ? Theme.accentDeep : .primary }
+    private let fullColor = true
+    private var ink: Color { Theme.ink }
+    private var muted: Color { Theme.secondaryText }
+    private var accentText: Color { Theme.accentDeep }
 
     private var newTripLabel: some View {
         Label("Neue Fahrt", systemImage: "plus")
@@ -37,7 +41,7 @@ struct MilesWidgetContent: View {
 
     var body: some View {
         switch family {
-        case .systemMedium: medium
+        case .medium: medium
         default: small
         }
     }
@@ -47,7 +51,7 @@ struct MilesWidgetContent: View {
     private var small: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
-                LogoMark(size: 20).widgetAccentable()
+                LogoMark(size: 20)
                 Text("Business Miles")
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundStyle(ink)
@@ -80,7 +84,6 @@ struct MilesWidgetContent: View {
             .background(Capsule().fill(fullColor ? Theme.accentSoft : Color.primary.opacity(0.12)))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .widgetURL(AppConfig.openURL)
     }
 
     // MARK: Mittel
@@ -89,7 +92,7 @@ struct MilesWidgetContent: View {
         HStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 7) {
-                    LogoMark(size: 20).widgetAccentable()
+                    LogoMark(size: 20)
                     if fullColor {
                         Wordmark(size: 13)
                     } else {
@@ -136,15 +139,15 @@ struct MilesWidgetContent: View {
                 .padding(10)
                 .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(fullColor ? Theme.background : Color.primary.opacity(0.08)))
 
-                if interactive {
-                    Link(destination: AppConfig.newTripURL) { newTripLabel }
+                if let onNewTrip {
+                    Button(action: onNewTrip) { newTripLabel }
+                        .buttonStyle(.plain)
                 } else {
                     newTripLabel
                 }
             }
             .frame(maxWidth: .infinity)
         }
-        .widgetURL(AppConfig.openURL)
     }
 }
 

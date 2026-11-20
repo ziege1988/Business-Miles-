@@ -76,6 +76,8 @@ struct SettingsView: View {
                 Text("Fahrten und Einstellungen liegen in „Business-Miles/business-miles.json“. Tipp: Im Finder per Rechtsklick auf den Ordner „Immer auf diesem Gerät behalten“ wählen.")
             }
 
+            DesktopWidgetSection()
+
             UpdateSection()
 
             Section {
