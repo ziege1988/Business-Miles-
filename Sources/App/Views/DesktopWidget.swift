@@ -76,10 +76,10 @@ final class DesktopWidgetController: ObservableObject {
 
         let view = DesktopWidgetView(size: size,
                                      onDrag: { [weak self] phase in self?.drag(phase) },
-                                     onOpen: { Self.openApp() },
-                                     onNewTrip: { [weak router] in
-                                         Self.openApp()
+                                     onOpen: { [weak self] in self?.openApp() },
+                                     onNewTrip: { [weak self, weak router] in
                                          router?.newTripRequested = true
+                                         self?.openApp()
                                      })
             .environmentObject(store)
         panel.contentView = FirstClickHostingView(rootView: view)
@@ -119,10 +119,15 @@ final class DesktopWidgetController: ObservableObject {
         return CGPoint(x: visible.minX + 16, y: visible.maxY - size.height - 16)
     }
 
-    private static func openApp() {
+    /// Programmfenster zeigen – öffnet es neu, falls es geschlossen war, und holt das Dock-Symbol zurück.
+    func openApp() {
+        NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
-        if let main = NSApp.windows.first(where: { !($0 is NSPanel) && $0.canBecomeMain }) {
+        if let main = NSApp.windows.first(where: { !($0 is NSPanel) && $0.canBecomeMain && $0.title == "Business Miles" })
+            ?? NSApp.windows.first(where: { !($0 is NSPanel) && $0.canBecomeMain && $0.isVisible }) {
             main.makeKeyAndOrderFront(nil)
+        } else {
+            router?.openMainWindow?()
         }
     }
 
@@ -181,6 +186,7 @@ struct DesktopWidgetView: View {
                     Button("Neue Fahrt", action: onNewTrip)
                     Divider()
                     Button("Kachel ausblenden") { DesktopWidgetController.shared.isEnabled = false }
+                    Button("Business Miles beenden") { NSApp.terminate(nil) }
                 }
                 .padding(14)
                 .preferredColorScheme(.light)
@@ -191,6 +197,7 @@ struct DesktopWidgetView: View {
 /// Einstellungen → „Schreibtisch-Widget“
 struct DesktopWidgetSection: View {
     @ObservedObject var controller = DesktopWidgetController.shared
+    @AppStorage(AppDelegate.openWindowOnLaunchKey) private var openWindowOnLaunch = true
 
     var body: some View {
         Section {
@@ -206,10 +213,11 @@ struct DesktopWidgetSection: View {
             if let message = controller.loginItemMessage {
                 Text(message).font(.footnote).foregroundStyle(Theme.warning)
             }
+            Toggle("Programmfenster beim Start öffnen", isOn: $openWindowOnLaunch)
         } header: {
             Text("Schreibtisch-Widget")
         } footer: {
-            Text("Die Kachel lässt sich mit der Maus an jede Stelle ziehen. Klick öffnet die App, Rechtsklick zeigt weitere Aktionen. Sie ist sichtbar, solange Business Miles läuft – daher Autostart empfohlen.")
+            Text("Beim automatischen Start nach der Anmeldung erscheint nur die Kachel – ohne Fenster und Dock-Symbol. Schließt du das Fenster, läuft Business Miles unsichtbar weiter. Klick auf die Kachel öffnet die App, Rechtsklick → „Business Miles beenden“ beendet sie ganz. Die Kachel lässt sich mit der Maus verschieben.")
         }
     }
 }

@@ -18,6 +18,9 @@ enum EditorRequest: Identifiable {
 struct RootView: View {
     @EnvironmentObject private var store: TripStore
     @EnvironmentObject private var router: AppRouter
+    @Environment(\.openWindow) private var openWindow
+    /// Nur beim allerersten Fenster nach dem Programmstart prüfen, ob versteckt gestartet wird
+    private static var didHandleLaunch = false
 
     @State private var selectedYear = Fmt.calendar.component(.year, from: .now)
     @State private var editorRequest: EditorRequest? = nil
@@ -82,6 +85,25 @@ struct RootView: View {
             if !ScreenshotMode.isActive {
                 UpdateService.shared.checkIfDue()
                 DesktopWidgetController.shared.start(store: store, router: router)
+            }
+        }
+        .onAppear {
+            router.openMainWindow = { [openWindow] in openWindow(id: "main") }
+            // „Neue Fahrt“ von der Kachel, während das Fenster noch zu war
+            if router.newTripRequested {
+                editorRequest = .new
+                router.newTripRequested = false
+            }
+            AppDelegate.updateDockIcon()
+            if !Self.didHandleLaunch {
+                Self.didHandleLaunch = true
+                if AppDelegate.startHidden {
+                    // Kachel zuerst starten, dann das Fenster schließen (App läuft unsichtbar weiter)
+                    DesktopWidgetController.shared.start(store: store, router: router)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        NSApp.windows.first { $0.isVisible && !($0 is NSPanel) && $0.canBecomeMain }?.close()
+                    }
+                }
             }
         }
         .onChange(of: router.newTripRequested) { _, requested in
