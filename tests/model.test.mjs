@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { mergeDocs, emptyDoc, newTrip, yearSummaries, sameContent, totalKm, normalizeDoc, placeLine, tripTitle, normalizeTrip } from "../web/js/model.js";
 import { buildReport, makeXlsx } from "../web/js/exports.js";
+import { parseDecimal } from "../web/js/format.js";
 
 const trip = (over) => ({ ...newTrip(), date: "2026-11-18", outboundKm: 10, returnKm: 12, ...over });
 
@@ -71,4 +72,21 @@ test("Lokalität: Name wird gespeichert und angezeigt", () => {
   assert.equal(tripTitle(t), "Café Sek Sol");
   // Mac-Datei ohne name-Feld bleibt lesbar
   assert.equal(normalizeTrip({ destination: { city: "Fulda" } }).destination.name, "");
+});
+
+test("Zahleneingabe: Komma und Punkt", () => {
+  assert.equal(parseDecimal("12,5"), 12.5);
+  assert.equal(parseDecimal("12.5"), 12.5);
+  assert.equal(parseDecimal("1.264,8"), 1264.8);
+  assert.equal(parseDecimal("0.42", { allowThousands: false }), 0.42);
+  assert.equal(parseDecimal("0.425", { allowThousands: false }), 0.425);
+  assert.equal(parseDecimal(""), null);
+});
+
+test("Manuelle km: nie offen, Hinweis im Export", () => {
+  const t = normalizeTrip({ id: "m", date: "2026-11-20", kmManual: true, kmPending: true, outboundKm: 50, returnKm: 50, note: "Umleitung A7" });
+  assert.equal(t.kmPending, false);
+  const summary = yearSummaries([t]).find((y) => y.year === 2026);
+  const r = buildReport(summary, null, { ...emptyDoc().settings, ratePerKm: 0.3 });
+  assert.equal(r.groups[0].rows[0].note, "km manuell angepasst – Umleitung A7");
 });

@@ -80,6 +80,22 @@ final class TripStore: ObservableObject {
         didChange()
     }
 
+    /// Setzt den km-Satz für alle Fahrten eines Jahres. Ergebnis: Anzahl geänderter Fahrten.
+    @discardableResult
+    func applyRate(_ rate: Double, toYear year: Int) -> Int {
+        let prefix = String(format: "%04d-", year)
+        let now = ISOTime.now
+        var count = 0
+        for i in doc.trips.indices where !doc.trips[i].deleted && doc.trips[i].day.hasPrefix(prefix)
+            && doc.trips[i].ratePerKm != rate {
+            doc.trips[i].ratePerKm = rate
+            doc.trips[i].updatedAt = now
+            count += 1
+        }
+        if count > 0 { didChange() }
+        return count
+    }
+
     func updateSettings(_ settings: AppSettings) {
         guard !settings.sameContent(as: doc.settings) else { return }
         var s = settings
@@ -186,7 +202,7 @@ final class TripStore: ObservableObject {
     /// Offline (z. B. am iPhone) erfasste Fahrten ohne km nachberechnen.
     private func resolvePendingDistances() async {
         guard !resolvingDistances else { return }
-        let pending = doc.trips.filter { $0.kmPending && !$0.deleted }
+        let pending = doc.trips.filter { $0.kmPending && !$0.deleted && !$0.kmManual }
         guard !pending.isEmpty else { return }
         resolvingDistances = true
         defer { resolvingDistances = false }

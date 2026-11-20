@@ -35,6 +35,31 @@ export function weekday(s) {
   return WEEKDAYS[new Date(y, m - 1, d).getDay()];
 }
 
+/**
+ * Liest eine Zahl so, wie Menschen sie eintippen: "12,5", "12.5", "1.264,8", "1,264.8", "0.42", "45 km".
+ * allowThousands=false (z. B. €/km): ein einzelner Punkt ist immer Dezimalzeichen.
+ * Ergebnis: Zahl oder null (leer/ungültig).
+ */
+export function parseDecimal(input, { allowThousands = true } = {}) {
+  let s = String(input ?? "").replace(/[^\d.,-]/g, "");
+  if (!s || s === "-" ) return null;
+  const lastDot = s.lastIndexOf("."), lastComma = s.lastIndexOf(",");
+  if (lastDot >= 0 && lastComma >= 0) {
+    // Beide vorhanden: das letzte Zeichen ist der Dezimaltrenner
+    const dec = lastDot > lastComma ? "." : ",";
+    const grp = dec === "." ? "," : ".";
+    s = s.split(grp).join("").replace(dec, ".");
+  } else if (lastComma >= 0) {
+    s = s.split(".").join("").replace(/,(?=.*,)/g, "").replace(",", ".");
+  } else if (lastDot >= 0) {
+    // Nur Punkte: "1.264" bzw. "12.345.678" = Tausender (nur bei km), sonst Dezimalpunkt
+    if (allowThousands && /^\d{1,3}(\.\d{3})+$/.test(s)) s = s.split(".").join("");
+    else s = s.replace(/\.(?=.*\.)/g, "");
+  }
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
 export function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }

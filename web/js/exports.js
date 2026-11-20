@@ -23,7 +23,8 @@ export function buildReport(summary, month, settings) {
         totalKm: totalKm(t),
         rate: tripRate(t, rate),
         amount: amount(t, rate),
-        note: t.note,
+        // Begründung für Abweichungen von der Routenberechnung gehört in den Nachweis
+        note: t.kmManual ? ["km manuell angepasst", t.note].filter(Boolean).join(" – ") : t.note,
         departureTime: t.departureTime,
         returnTime: t.returnTime,
         timeRange: timeRange(t),

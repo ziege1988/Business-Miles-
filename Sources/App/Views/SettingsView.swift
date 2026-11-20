@@ -4,6 +4,9 @@ struct SettingsView: View {
     @EnvironmentObject private var store: TripStore
     @State private var draft = AppSettings()
     @State private var loaded = false
+    @State private var applyYear = Fmt.calendar.component(.year, from: .now)
+    @State private var confirmApply = false
+    @State private var applyResult: String? = nil
     @State private var exportFolderPath: String? = ExportFolderStore.folderURL()?.path
 
     var body: some View {
@@ -37,12 +40,8 @@ struct SettingsView: View {
                 HStack {
                     Text("Kilometersatz")
                     Spacer()
-                    TextField("Satz", value: Binding(
-                        get: { draft.ratePerKm },
-                        set: { draft.ratePerKm = max(0, $0) }),
-                              format: .number.precision(.fractionLength(2)).locale(Fmt.locale))
+                    DecimalField(title: "Satz", value: $draft.ratePerKm, fractionDigits: 2, allowsThousands: false)
                         .labelsHidden()
-                        .multilineTextAlignment(.trailing)
                         .frame(width: 80)
                     Text("€ / km").foregroundStyle(Theme.secondaryText)
                 }
@@ -75,6 +74,8 @@ struct SettingsView: View {
             } footer: {
                 Text("Fahrten und Einstellungen liegen in „Business-Miles/business-miles.json“. Tipp: Im Finder per Rechtsklick auf den Ordner „Immer auf diesem Gerät behalten“ wählen.")
             }
+
+            applyRateSection
 
             DesktopWidgetSection()
 
@@ -120,6 +121,53 @@ struct SettingsView: View {
         .onChange(of: draft) { _, newValue in
             guard loaded else { return }
             store.updateSettings(newValue)
+        }
+    }
+
+    // MARK: Kilometersatz auf ein Jahr übernehmen
+
+    private var yearsWithTrips: [YearSummary] {
+        TripStatistics.years(from: store.trips).filter { $0.tripCount > 0 }
+    }
+
+    private var applyRateSection: some View {
+        Section {
+            if yearsWithTrips.isEmpty {
+                Text("Noch keine Fahrten vorhanden.").foregroundStyle(Theme.secondaryText)
+            } else {
+                Picker("Jahr", selection: $applyYear) {
+                    ForEach(yearsWithTrips) { y in
+                        Text("\(String(y.year)) (\(Fmt.tripCount(y.tripCount)))").tag(y.year)
+                    }
+                }
+                Button("Satz \(Fmt.rate(draft.ratePerKm)) auf alle Fahrten \(String(applyYear)) übernehmen") {
+                    confirmApply = true
+                }
+                .confirmationDialog("Kilometersatz übernehmen?", isPresented: $confirmApply) {
+                    Button("\(Fmt.rate(draft.ratePerKm)) je km auf alle Fahrten \(String(applyYear)) übernehmen") {
+                        store.updateSettings(draft)
+                        let n = store.applyRate(draft.ratePerKm, toYear: applyYear)
+                        applyResult = n > 0
+                            ? "\(Fmt.tripCount(n)) \(String(applyYear)) aktualisiert."
+                            : "Alle Fahrten \(String(applyYear)) hatten bereits diesen Satz."
+                    }
+                } message: {
+                    Text("Die Beträge aller Fahrten dieses Jahres werden mit dem neuen Satz berechnet.")
+                }
+                if let applyResult {
+                    Label(applyResult, systemImage: "checkmark.circle")
+                        .foregroundStyle(Theme.accentDeep)
+                }
+            }
+        } header: {
+            Text("Kilometersatz auf Fahrten übernehmen")
+        } footer: {
+            Text("Korrigiert z. B. einen falsch eingetragenen Satz. Verwendet wird der oben eingetragene Kilometersatz.")
+        }
+        .onAppear {
+            if let latest = yearsWithTrips.first, !yearsWithTrips.contains(where: { $0.year == applyYear }) {
+                applyYear = latest.year
+            }
         }
     }
 }

@@ -76,7 +76,7 @@ export function newTrip() {
     destination: emptyAddress(),
     startUsesHome: true, start: emptyAddress(),
     returnEnabled: true, returnUsesHome: true, returnTo: emptyAddress(),
-    outboundKm: 0, returnKm: 0, ratePerKm: null, departureTime: "", returnTime: "", kmPending: false,
+    outboundKm: 0, returnKm: 0, ratePerKm: null, departureTime: "", returnTime: "", kmPending: false, kmManual: false,
     source: "web", createdAt: t, updatedAt: t, deleted: false,
   };
 }
@@ -109,7 +109,8 @@ export function normalizeTrip(t) {
     ratePerKm: typeof t.ratePerKm === "number" && t.ratePerKm >= 0 ? t.ratePerKm : null,
     departureTime: /^\d{2}:\d{2}$/.test(t.departureTime || "") ? t.departureTime : "",
     returnTime: /^\d{2}:\d{2}$/.test(t.returnTime || "") ? t.returnTime : "",
-    kmPending: t.kmPending === true,
+    kmPending: t.kmPending === true && t.kmManual !== true,
+    kmManual: t.kmManual === true,
     source: String(t.source || ""),
     createdAt: String(t.createdAt || n.createdAt),
     updatedAt: String(t.updatedAt || n.updatedAt),

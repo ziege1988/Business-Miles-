@@ -72,6 +72,20 @@ export const store = {
     changed();
   },
 
+  /** Setzt den km-Satz für alle Fahrten eines Jahres. Ergebnis: Anzahl geänderter Fahrten. */
+  applyRateToYear(year, rate) {
+    let count = 0;
+    const now = nowISO();
+    for (const t of state.doc.trips) {
+      if (t.deleted || !t.date.startsWith(`${year}-`) || t.ratePerKm === rate) continue;
+      t.ratePerKm = rate;
+      t.updatedAt = now;
+      count++;
+    }
+    if (count) changed();
+    return count;
+  },
+
   updateSettings(settings) {
     state.doc.settings = normalizeSettings({ ...settings, updatedAt: nowISO() });
     changed();
@@ -102,7 +116,7 @@ async function resolvePendingKm(doc) {
   const home = doc.settings.home;
   let changedAny = false;
   for (const t of doc.trips) {
-    if (!t.kmPending || t.deleted) continue;
+    if (!t.kmPending || t.deleted || t.kmManual) continue;
     const start = t.startUsesHome ? home : t.start;
     const back = t.returnUsesHome ? home : t.returnTo;
     if (!isUsable(start) || !isUsable(t.destination)) continue;

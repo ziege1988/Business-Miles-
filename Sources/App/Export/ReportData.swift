@@ -115,7 +115,7 @@ struct ReportData {
             totalKm: trip.totalKm,
             rate: trip.rate(default: rate),
             amount: trip.amount(rate: rate),
-            note: trip.note,
+            note: trip.kmManual ? ["km manuell angepasst", trip.note].filter { !$0.isEmpty }.joined(separator: " – ") : trip.note,
             departureTime: trip.departureTime,
             returnTime: trip.returnTime,
             timeRange: trip.timeRange,

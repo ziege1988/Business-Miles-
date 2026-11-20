@@ -16,6 +16,8 @@ struct TripEditorView: View {
     @State private var routeError: String? = nil
     @State private var confirmDelete = false
     @State private var showTimes = false
+    /// Ergebnis der letzten Routenberechnung (zum Vergleich bei manuellen km)
+    @State private var calculatedKm: (outbound: Double, back: Double)? = nil
 
     init(request: EditorRequest) {
         self.request = request
@@ -178,7 +180,7 @@ struct TripEditorView: View {
                 guard currentRouteKey != initialRouteKey else { return }
                 try? await Task.sleep(for: .milliseconds(700))
                 guard !Task.isCancelled else { return }
-                await recalculate()
+                await recalculate(overwrite: false)
             }
             .confirmationDialog("Fahrt löschen?", isPresented: $confirmDelete) {
                 Button("Löschen", role: .destructive) {
@@ -246,6 +248,20 @@ struct TripEditorView: View {
 
     private var distanceSection: some View {
         Section {
+            Toggle(isOn: Binding(
+                get: { trip.kmManual },
+                set: { manual in
+                    trip.kmManual = manual
+                    // Zurück auf automatisch → sofort neu berechnen
+                    if !manual { Task { await recalculate(overwrite: true) } }
+                })) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Kilometer manuell anpassen")
+                    Text("z. B. Umleitung wegen Unfall – Grund bitte in die Notiz")
+                        .font(.caption)
+                        .foregroundStyle(Theme.secondaryText)
+                }
+            }
             kmRow("Hinfahrt", value: $trip.outboundKm)
             if trip.returnEnabled {
                 kmRow("Rückfahrt", value: $trip.returnKm)
@@ -253,17 +269,33 @@ struct TripEditorView: View {
             HStack {
                 Text("Gesamt").font(.headline)
                 Spacer()
-                Text(Fmt.km(trip.totalKm))
-                    .font(.headline.monospacedDigit())
-                    .foregroundStyle(Theme.accentDeep)
+                if trip.kmManual {
+                    // Gesamt-km eingeben → auf Hin- und Rückfahrt aufteilen
+                    DecimalField(title: "Gesamt", value: totalBinding)
+                        .labelsHidden()
+                        .font(.headline.monospacedDigit())
+                        .frame(width: 90)
+                    Text("km").foregroundStyle(Theme.secondaryText)
+                } else {
+                    Text(Fmt.km(trip.totalKm))
+                        .font(.headline.monospacedDigit())
+                        .foregroundStyle(Theme.accentDeep)
+                }
+            }
+            if trip.kmManual, let calc = calculatedKm {
+                HStack {
+                    Text("Laut Routenberechnung")
+                    Spacer()
+                    Text(Fmt.km(calc.outbound + (trip.returnEnabled ? calc.back : 0)))
+                }
+                .font(.subheadline)
+                .foregroundStyle(Theme.secondaryText)
             }
             HStack {
                 Text("Kilometersatz")
                 Spacer()
-                TextField("Satz", value: rateBinding,
-                          format: .number.precision(.fractionLength(2)).locale(Fmt.locale))
+                DecimalField(title: "Satz", value: rateBinding, fractionDigits: 2, allowsThousands: false)
                     .labelsHidden()
-                    .multilineTextAlignment(.trailing)
                     .frame(width: 70)
                 Text("€ / km").foregroundStyle(Theme.secondaryText)
             }
@@ -284,7 +316,8 @@ struct TripEditorView: View {
                         .foregroundStyle(Theme.secondaryText)
                 } else {
                     Button {
-                        Task { await recalculate() }
+                        trip.kmManual = false
+                        Task { await recalculate(overwrite: true) }
                     } label: {
                         Label("Kilometer neu berechnen", systemImage: "arrow.triangle.2.circlepath")
                     }
@@ -304,8 +337,24 @@ struct TripEditorView: View {
         } header: {
             Text("Strecke")
         } footer: {
-            Text("Die Kilometer werden per Apple Karten (Auto, empfohlene Route) berechnet und können überschrieben werden.")
+            Text("Die Kilometer werden per Apple Karten (Auto, empfohlene Route) berechnet. Wer sie ändert, schaltet automatisch auf „manuell“ – dann werden sie nicht mehr überschrieben.")
         }
+    }
+
+    /// Gesamt-km: bei Hin- und Rückfahrt je zur Hälfte aufteilen
+    private var totalBinding: Binding<Double> {
+        Binding(
+            get: { trip.totalKm },
+            set: { total in
+                if trip.returnEnabled {
+                    let out = (total / 2 * 10).rounded() / 10
+                    trip.outboundKm = out
+                    trip.returnKm = ((total - out) * 10).rounded() / 10
+                } else {
+                    trip.outboundKm = total
+                }
+            }
+        )
     }
 
     private var rateBinding: Binding<Double> {
@@ -335,10 +384,9 @@ struct TripEditorView: View {
         HStack {
             Text(title)
             Spacer()
-            TextField(title, value: value,
-                      format: .number.precision(.fractionLength(0...1)).locale(Fmt.locale))
+            // Eigene Eingabe → automatisch „manuell“, damit die Routenberechnung nichts überschreibt
+            DecimalField(title: title, value: value, onUserEdit: { trip.kmManual = true })
                 .labelsHidden()
-                .multilineTextAlignment(.trailing)
                 .frame(width: 90)
             Text("km").foregroundStyle(Theme.secondaryText)
         }
@@ -347,7 +395,8 @@ struct TripEditorView: View {
     // MARK: Aktionen
 
     @MainActor
-    private func recalculate() async {
+    /// overwrite = false: manuelle km bleiben stehen, es wird nur der Vergleichswert ermittelt.
+    private func recalculate(overwrite: Bool) async {
         let start = effectiveStart
         let dest = trip.destination
         let ret = effectiveReturn
@@ -374,8 +423,11 @@ struct TripEditorView: View {
                 back = try await RouteService.drivingDistanceKm(from: dest, to: ret)
             }
             guard !Task.isCancelled else { return }
-            trip.outboundKm = outbound
-            if withReturn { trip.returnKm = back }
+            calculatedKm = (outbound, back)
+            if overwrite || !trip.kmManual {
+                trip.outboundKm = outbound
+                if withReturn { trip.returnKm = back }
+            }
         } catch is CancellationError {
             // Neue Eingabe – Berechnung startet erneut.
         } catch {
@@ -393,7 +445,7 @@ struct TripEditorView: View {
         t.returnTarget = t.returnEnabled ? effectiveReturn : AddressValue()
         t.outboundKm = max(0, t.outboundKm)
         t.returnKm = t.returnEnabled ? max(0, t.returnKm) : 0
-        t.kmPending = t.totalKm <= 0
+        t.kmPending = !t.kmManual && t.totalKm <= 0
         if t.ratePerKm == nil { t.ratePerKm = store.settings.ratePerKm }
         if showTimes {
             // Uhrzeit-Picker angezeigt, aber nie bewegt → Standardwerte übernehmen

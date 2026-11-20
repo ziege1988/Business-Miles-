@@ -44,6 +44,7 @@ dieselbe Datei. Damit gleichzeitige Änderungen nicht verloren gehen, wird **nie
       "departureTime": "08:30",
       "returnTime": "17:45",
       "kmPending": false,
+      "kmManual": false,
       "source": "web",
       "createdAt": "…",
       "updatedAt": "…",
@@ -62,6 +63,9 @@ aus den Einstellungen.
 
 `name` in Adressen: optionaler Name der Lokalität/Firma (aus der Lokalitätssuche oder von Hand).
 Erscheint in Listen und im Export vor der Adresse („Café Sek Sol, Friedrichstraße 7, 36037 Fulda“).
+
+`kmManual: true`: Kilometer wurden von Hand angepasst (z. B. Umleitung). Solche Fahrten werden nie
+automatisch neu berechnet; im Export steht „km manuell angepasst“ vor der Notiz.
 
 `departureTime` / `returnTime`: optionale Uhrzeiten `HH:MM` (leer = nicht angegeben).
 

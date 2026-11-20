@@ -163,15 +163,15 @@ function closeSheet(id) {
 }
 
 const parseKm = (v) => {
-  const n = parseFloat(String(v || "").replace(/\./g, "").replace(",", "."));
-  return Number.isFinite(n) && n > 0 ? Math.round(n * 10) / 10 : 0;
+  const n = fmt.parseDecimal(v, { allowThousands: true });
+  return n !== null && n > 0 ? Math.round(n * 10) / 10 : 0;
 };
 const kmInput = (v) => (v ? fmt.num(v) : "");
 const fmtRate = (v) => (Number(v) || 0).toFixed(2).replace(".", ",");
 /** "0,35" → 0.35; leer/ungültig → Standard */
 const parseRate = (v, fallback) => {
-  const n = parseFloat(String(v || "").trim().replace(",", "."));
-  return Number.isFinite(n) && n >= 0 ? Math.round(n * 1000) / 1000 : fallback;
+  const n = fmt.parseDecimal(v, { allowThousands: false });
+  return n !== null && n >= 0 ? Math.round(n * 1000) / 1000 : fallback;
 };
 
 // ===========================================================================
@@ -378,9 +378,12 @@ function openEditor(mode, source) {
         </div>
       </div>
       <div class="group"><label>Strecke</label><div class="fields">
+        <div class="field"><span>Kilometer manuell anpassen<br><small class="unit">z. B. Umleitung wegen Unfall</small></span><label class="switch"><input type="checkbox" class="e-manual"><i></i></label></div>
         <div class="field"><span>Hinfahrt</span><input class="num e-out" inputmode="decimal" placeholder="0,0" style="margin-left:auto"><span class="unit">km</span></div>
         <div class="field e-back-row"><span>Rückfahrt</span><input class="num e-back" inputmode="decimal" placeholder="0,0" style="margin-left:auto"><span class="unit">km</span></div>
         <div class="total-line"><span>Gesamt</span><span class="e-total"></span></div>
+        <div class="field e-total-row"><span><b>Gesamt</b></span><input class="num e-total-in" inputmode="decimal" placeholder="0,0" style="margin-left:auto;font-weight:700"><span class="unit">km</span></div>
+        <div class="muted-line e-ref" hidden></div>
         <div class="field"><span>Kilometersatz</span><input class="num e-rate-in" inputmode="decimal" style="margin-left:auto"><span class="unit">€/km</span></div>
         <div class="total-line"><span>Fahrtkosten</span><span class="e-amount"></span></div>
         <div class="calc e-calc"></div>
@@ -396,6 +399,8 @@ function openEditor(mode, source) {
   q(".e-purpose").value = t.purpose;
   q(".e-note").value = t.note;
   q(".e-return").checked = t.returnEnabled;
+  q(".e-manual").checked = t.kmManual;
+  let lastCalc = null; // { out, back } laut Routenberechnung
   q(".e-out").value = kmInput(t.outboundKm);
   q(".e-back").value = kmInput(t.returnKm);
   q(".e-rate-in").value = fmtRate(tripRate(t, store.settings.ratePerKm));
@@ -432,7 +437,17 @@ function openEditor(mode, source) {
     q(".e-back-row").hidden = !ret;
     const total = parseKm(q(".e-out").value) + (ret ? parseKm(q(".e-back").value) : 0);
     const rate = parseRate(q(".e-rate-in").value, store.settings.ratePerKm);
+    const manual = q(".e-manual").checked;
     q(".e-total").textContent = fmt.km(total);
+    q(".e-total").parentElement.hidden = manual;
+    q(".e-total-row").hidden = !manual;
+    if (manual && document.activeElement !== q(".e-total-in")) q(".e-total-in").value = kmInput(total);
+    const ref = q(".e-ref");
+    if (manual && lastCalc) {
+      const calcTotal = lastCalc.out + (ret ? lastCalc.back : 0);
+      ref.innerHTML = `<span>Laut Routenberechnung</span><span>${fmt.km(calcTotal)}</span>`;
+      ref.hidden = false;
+    } else ref.hidden = true;
     q(".e-amount").textContent = fmt.euro(Math.round(total * rate * 100) / 100);
     for (const row of el.querySelectorAll(".e-time-row")) row.hidden = !q(".e-times").checked;
   }
@@ -466,8 +481,12 @@ function openEditor(mode, source) {
       const out = await geo.drivingKm(s, d);
       const back = withReturn ? await geo.drivingKm(d, r) : 0;
       if (seq !== calcSeq || !el.isConnected) return;
-      q(".e-out").value = kmInput(out);
-      if (withReturn) q(".e-back").value = kmInput(back);
+      lastCalc = { out, back };
+      // Manuell angepasste km nur auf ausdrücklichen Wunsch („neu berechnen“) überschreiben
+      if (!q(".e-manual").checked) {
+        q(".e-out").value = kmInput(out);
+        if (withReturn) q(".e-back").value = kmInput(back);
+      }
       setCalc("idle");
       updateUI();
     } catch (e) {
@@ -492,7 +511,8 @@ function openEditor(mode, source) {
     t.returnTo = ret ? (returnHome ? { ...home() } : retField.get()) : emptyAddress();
     t.outboundKm = parseKm(q(".e-out").value);
     t.returnKm = ret ? parseKm(q(".e-back").value) : 0;
-    t.kmPending = totalKm(t) <= 0;
+    t.kmManual = q(".e-manual").checked;
+    t.kmPending = !t.kmManual && totalKm(t) <= 0;
     t.ratePerKm = parseRate(q(".e-rate-in").value, store.settings.ratePerKm);
     const times = q(".e-times").checked;
     t.departureTime = times ? q(".e-dep").value : "";
@@ -509,7 +529,11 @@ function openEditor(mode, source) {
     const x = e.target.closest("[data-x]")?.dataset.x;
     if (x === "cancel") closeSheet("#sheet-editor");
     else if (x === "save") save();
-    else if (x === "recalc") recalc(true);
+    else if (x === "recalc") {
+      q(".e-manual").checked = false;  // „neu berechnen“ = wieder automatisch
+      updateUI();
+      recalc(true);
+    }
     else if (x === "settings") openSettings();
     else if (x === "delete") {
       if (confirm(`Fahrt „${tripTitle(t)}“ vom ${fmt.date(t.date)} löschen?`)) {
@@ -538,11 +562,30 @@ function openEditor(mode, source) {
     }
   });
   q(".e-return").addEventListener("change", scheduleCalc);
-  q(".e-out").addEventListener("input", updateUI);
+  // Wer km von Hand ändert, schaltet automatisch auf „manuell“ – die Automatik überschreibt dann nichts mehr
+  const markManual = () => { if (!q(".e-manual").checked) q(".e-manual").checked = true; updateUI(); };
+  q(".e-out").addEventListener("input", markManual);
+  q(".e-back").addEventListener("input", markManual);
+  q(".e-manual").addEventListener("change", () => {
+    updateUI();
+    if (!q(".e-manual").checked) recalc(true);
+  });
+  // Gesamt-km eingeben → auf Hin- und Rückfahrt aufteilen
+  q(".e-total-in").addEventListener("input", () => {
+    const total = parseKm(q(".e-total-in").value);
+    if (q(".e-return").checked) {
+      const out = Math.round((total / 2) * 10) / 10;
+      q(".e-out").value = kmInput(out);
+      q(".e-back").value = kmInput(Math.round((total - out) * 10) / 10);
+    } else {
+      q(".e-out").value = kmInput(total);
+    }
+    updateUI();
+  });
+  q(".e-total-in").addEventListener("blur", () => { q(".e-total-in").value = kmInput(parseKm(q(".e-total-in").value)); });
   q(".e-rate-in").addEventListener("input", updateUI);
   q(".e-rate-in").addEventListener("blur", () => { q(".e-rate-in").value = fmtRate(parseRate(q(".e-rate-in").value, store.settings.ratePerKm)); });
   q(".e-times").addEventListener("change", updateUI);
-  q(".e-back").addEventListener("input", updateUI);
   q(".e-out").addEventListener("blur", () => { q(".e-out").value = kmInput(parseKm(q(".e-out").value)); });
   q(".e-back").addEventListener("blur", () => { q(".e-back").value = kmInput(parseKm(q(".e-back").value)); });
 
@@ -584,6 +627,10 @@ function openSettings() {
             : `<button class="link" data-x="login">Mit Microsoft anmelden</button>`)
           : `<span class="unit">Siehe Anleitung (README) zur Einrichtung.</span>`}</div>
       </div></div>
+      <div class="group"><label>Kilometersatz auf Fahrten übernehmen</label><div class="fields">
+        <div class="field"><span>Jahr</span><select class="s-apply-year" style="margin-left:auto;text-align:right">${yearSummaries(store.trips).filter((y) => y.tripCount).map((y) => `<option value="${y.year}">${y.year} (${fmt.tripCount(y.tripCount)})</option>`).join("") || `<option value="">keine Fahrten</option>`}</select></div>
+        <div class="field"><button class="link" data-x="apply-rate">Aktuellen Satz auf alle Fahrten dieses Jahres übernehmen</button></div>
+      </div><p class="hint">Korrigiert z. B. einen falsch eingetragenen Satz. Verwendet wird der oben eingetragene Kilometersatz; die Beträge aller Fahrten des Jahres werden neu berechnet.</p></div>
       <div class="group"><label>Version &amp; Updates</label><div class="fields">
         <div class="field"><span>Installiert</span><span class="unit" style="margin-left:auto">Version ${esc(window.BM_VERSION ?? "?")} · ${esc(fmt.date(window.BM_RELEASED || ""))}</span></div>
         <div class="field"><button class="link" data-x="update">Nach Updates suchen</button><span class="unit s-update-state" style="margin-left:auto"></span></div>
@@ -629,6 +676,17 @@ function openSettings() {
     if (x === "logout") graph.logout();
     if (x === "sync") { closeSheet("#sheet-settings"); store.sync({ interactive: true }); }
     if (x === "update") checkForUpdate(q(".s-update-state"));
+    if (x === "apply-rate") {
+      const year = Number(q(".s-apply-year").value);
+      const rate = parseRate(q(".s-rate").value, NaN);
+      if (!year || !Number.isFinite(rate)) return toast("Bitte Jahr und Kilometersatz prüfen.");
+      if (!confirm(`Kilometersatz ${fmt.euro(rate)} je km auf alle Fahrten ${year} übernehmen?`)) return;
+      // Satz zuerst als Standard speichern, dann auf das Jahr anwenden
+      store.updateSettings({ ...store.settings, ratePerKm: rate });
+      const n = store.applyRateToYear(year, rate);
+      render();
+      toast(n ? `${fmt.tripCount(n)} ${year} aktualisiert.` : `Alle Fahrten ${year} hatten bereits diesen Satz.`);
+    }
   });
 }
 

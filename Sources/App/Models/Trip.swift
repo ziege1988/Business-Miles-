@@ -67,6 +67,8 @@ struct Trip: Identifiable, Hashable {
     var returnTime: String = ""
     /// Offline erfasst – km werden nachberechnet.
     var kmPending: Bool = false
+    /// km von Hand angepasst (z. B. Umleitung) – nie automatisch neu berechnen
+    var kmManual: Bool = false
 
     var source: String = "mac"
     var createdAt: Date = ISOTime.now
@@ -113,7 +115,7 @@ extension Trip: Codable {
     private enum CodingKeys: String, CodingKey {
         case id, date, customer, purpose, note, destination, startUsesHome, start
         case returnEnabled, returnUsesHome, returnTo, outboundKm, returnKm, kmPending
-        case ratePerKm, departureTime, returnTime
+        case ratePerKm, departureTime, returnTime, kmManual
         case source, createdAt, updatedAt, deleted
     }
 
@@ -134,7 +136,8 @@ extension Trip: Codable {
         returnTarget = opt(AddressValue.self, .returnTo) ?? AddressValue()
         outboundKm = opt(Double.self, .outboundKm) ?? 0
         returnKm = opt(Double.self, .returnKm) ?? 0
-        kmPending = opt(Bool.self, .kmPending) ?? false
+        kmManual = opt(Bool.self, .kmManual) ?? false
+        kmPending = (opt(Bool.self, .kmPending) ?? false) && !kmManual
         ratePerKm = opt(Double.self, .ratePerKm)
         departureTime = opt(String.self, .departureTime) ?? ""
         returnTime = opt(String.self, .returnTime) ?? ""
@@ -160,6 +163,7 @@ extension Trip: Codable {
         try c.encode(outboundKm, forKey: .outboundKm)
         try c.encode(returnKm, forKey: .returnKm)
         try c.encode(kmPending, forKey: .kmPending)
+        try c.encode(kmManual, forKey: .kmManual)
         try c.encode(ratePerKm, forKey: .ratePerKm)
         try c.encode(departureTime, forKey: .departureTime)
         try c.encode(returnTime, forKey: .returnTime)
