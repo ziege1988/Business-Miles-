@@ -25,7 +25,7 @@ enum XLSXExporter {
     }
 
     // Spalten: A Datum · B Abfahrt · C Rückkehr · D Kunde · E Anlass · F Start · G Ziel · H Rückfahrt nach
-    //          I Hin km · J Rück km · K Gesamt km · L €/km · M Betrag · N Bemerkung
+    //          I Hinfahrt km · J Rückfahrt km · K Gesamt km · L €/km · M Betrag · N Bemerkung
     private static let columns = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N"]
     private static let widths: [Double] = [11, 8, 9, 22, 22, 28, 28, 28, 10, 11, 10, 9, 12, 24]
     private static let headers = ["Datum", "Abfahrt", "Rückkehr", "Kunde / Geschäftspartner", "Anlass / Zweck",

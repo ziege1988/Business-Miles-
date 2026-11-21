@@ -108,7 +108,7 @@ function tripRow(t, rate) {
     <div class="info"><div class="t">${esc(tripTitle(t))}</div>
       <div class="s">${esc(placeLine(t.destination))}</div>
       ${purpose ? `<div class="p">${esc(purpose)}</div>` : ""}</div>
-    <div class="km">${kmCell}<small>${t.returnEnabled ? "hin & zurück" : "einfach"}</small><small>${fmt.euro(amount(t, rate))}</small></div>
+    <div class="km">${kmCell}<small>${t.returnEnabled ? "Hin- und Rückfahrt" : "einfache Fahrt"}</small><small>${fmt.euro(amount(t, rate))}</small></div>
   </button>`;
 }
 

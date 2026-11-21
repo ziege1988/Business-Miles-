@@ -145,7 +145,7 @@ function excelSerial(day) {
 const S = { normal: 0, title: 2, header: 3, date: 4, km: 5, euro: 6, totalKm: 7, totalEuro: 8, wrap: 9,
   totalLabel: 10, monthHeader: 11, grandKm: 12, grandEuro: 13, grandLabel: 14, muted: 15 };
 // A Datum · B Abfahrt · C Rückkehr · D Kunde · E Anlass · F Start · G Ziel · H Rückfahrt nach
-// I Hin km · J Rück km · K Gesamt km · L €/km · M Betrag · N Bemerkung   (identisch zur Mac-App)
+// I Hinfahrt km · J Rückfahrt km · K Gesamt km · L €/km · M Betrag · N Bemerkung   (identisch zur Mac-App)
 const COLS = "ABCDEFGHIJKLMN".split("");
 const WIDTHS = [11, 8, 9, 22, 22, 28, 28, 28, 10, 11, 10, 9, 12, 24];
 const HEADERS = ["Datum", "Abfahrt", "Rückkehr", "Kunde / Geschäftspartner", "Anlass / Zweck", "Startadresse", "Zieladresse",
@@ -321,8 +321,8 @@ export function makePdf(report) {
     startY: tableTop,
     margin: { left: M, right: M, top: M + 22, bottom: M + 14 },
     head: [portrait
-      ? ["Datum", "Kunde / Anlass", "Strecke (Start » Ziel)", "Hin km", "Rück km", "Gesamt", "Betrag"]
-      : ["Datum", "Kunde / Partner", "Anlass / Zweck", "Start", "Ziel", "Hin km", "Rück km", "Gesamt", "Betrag"]],
+      ? ["Datum", "Kunde / Anlass", "Strecke (Start » Ziel)", "Hinfahrt\nkm", "Rückfahrt\nkm", "Gesamt\nkm", "Betrag"]
+      : ["Datum", "Kunde / Partner", "Anlass / Zweck", "Start", "Ziel", "Hinfahrt\nkm", "Rückfahrt\nkm", "Gesamt\nkm", "Betrag"]],
     body,
     theme: "plain",
     styles: { font: "helvetica", fontSize: 7.8, textColor: INK, cellPadding: 3.5, overflow: "linebreak", valign: "top",
@@ -330,13 +330,13 @@ export function makePdf(report) {
     headStyles: { fillColor: TEAL, textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
     columnStyles: portrait
       ? {
-        0: { cellWidth: 56 }, 1: { cellWidth: 124 }, 2: { cellWidth: 175 },
-        3: { cellWidth: 40, halign: "right" }, 4: { cellWidth: 42, halign: "right" },
-        5: { cellWidth: 44, halign: "right", fontStyle: "bold" }, 6: { cellWidth: 50, halign: "right" },
+        0: { cellWidth: 56 }, 1: { cellWidth: 114 }, 2: { cellWidth: 163 },
+        3: { cellWidth: 48, halign: "right" }, 4: { cellWidth: 52, halign: "right" },
+        5: { cellWidth: 46, halign: "right", fontStyle: "bold" }, 6: { cellWidth: 52, halign: "right" },
       }
       : {
-        0: { cellWidth: 56 }, 1: { cellWidth: 112 }, 2: { cellWidth: 100 }, 3: { cellWidth: 146 }, 4: { cellWidth: 156 },
-        5: { cellWidth: 48, halign: "right" }, 6: { cellWidth: 48, halign: "right" },
+        0: { cellWidth: 56 }, 1: { cellWidth: 110 }, 2: { cellWidth: 98 }, 3: { cellWidth: 140 }, 4: { cellWidth: 150 },
+        5: { cellWidth: 52, halign: "right" }, 6: { cellWidth: 56, halign: "right" },
         7: { cellWidth: 52, halign: "right", fontStyle: "bold" }, 8: { cellWidth: 60, halign: "right" },
       },
     didParseCell: (d) => {
@@ -457,7 +457,7 @@ function drawImagePage(report, items, index, count, last) {
       const sub = [r.purpose, r.destination].filter(Boolean).join(" · ");
       g.fillText(clip(sub, W - 2 * M - 400), M + 190, y + 60);
       g.textAlign = "right";
-      g.fillText(r.returnEnabled ? `hin ${fmt.num(r.outboundKm)} · zurück ${fmt.num(r.returnKm)}` : "einfache Fahrt", W - M - 14, y + 60);
+      g.fillText(r.returnEnabled ? `Hinfahrt ${fmt.num(r.outboundKm)} km · Rückfahrt ${fmt.num(r.returnKm)} km` : "einfache Fahrt", W - M - 14, y + 60);
       g.textAlign = "left";
       g.fillStyle = "rgb(226,231,236)"; g.fillRect(M, y + H_ROW_LINE, W - 2 * M, 1.5);
       y += 78;

@@ -36,7 +36,7 @@ struct ReportLayout {
     let margin: CGFloat = 32
     var firstPageHeader: CGFloat { portrait ? 150 : 112 }
     let otherPageHeader: CGFloat = 30
-    let tableHeader: CGFloat = 24
+    let tableHeader: CGFloat = 30
     let footer: CGFloat = 22
     let summaryBlock: CGFloat = 54
     let monthHeaderHeight: CGFloat = 22
@@ -47,16 +47,16 @@ struct ReportLayout {
     let colDate: CGFloat = 66
     let colCustomer: CGFloat = 118
     let colPurpose: CGFloat = 104
-    let colStart: CGFloat = 146
+    let colStart: CGFloat = 138
     let colDestination: CGFloat = 137
     // Hochformat – Summe ≈ 531 pt (Kunde+Anlass und Start→Ziel zusammengefasst)
-    let colCustomerPurpose: CGFloat = 120
-    let colRoute: CGFloat = 168
+    let colCustomerPurpose: CGFloat = 112
+    let colRoute: CGFloat = 160
 
     var colDateEffective: CGFloat { portrait ? 62 : colDate }
-    var colKm: CGFloat { portrait ? 44 : 50 }
-    var colTotal: CGFloat { portrait ? 44 : 54 }
-    var colAmount: CGFloat { portrait ? 49 : 52 }
+    var colKm: CGFloat { portrait ? 48 : 54 }
+    var colTotal: CGFloat { portrait ? 48 : 54 }
+    var colAmount: CGFloat { portrait ? 53 : 52 }
     /// Breite der Textspalten vor den Zahlen (für Summenzeilen)
     var textColumnsWidth: CGFloat {
         portrait ? colDateEffective + colCustomerPurpose + colRoute
@@ -235,13 +235,13 @@ struct ReportPageView: View {
                 cell("Start", L.colStart)
                 cell("Ziel", L.colDestination)
             }
-            cell("Hin km", L.colKm, trailing: true)
-            cell("Rück km", L.colKm, trailing: true)
-            cell("Gesamt", L.colTotal, trailing: true)
+            cell("Hinfahrt\nkm", L.colKm, trailing: true, lines: 2)
+            cell("Rückfahrt\nkm", L.colKm, trailing: true, lines: 2)
+            cell("Gesamt\nkm", L.colTotal, trailing: true, lines: 2)
             cell("Betrag", L.colAmount, trailing: true)
         }
         .font(.system(size: 8.5, weight: .semibold))
-        .minimumScaleFactor(0.7)   // im Hochformat lieber etwas kleiner als abgeschnitten („Rück km“)
+        .minimumScaleFactor(0.8)   // lieber minimal kleiner als abgeschnitten
         .foregroundStyle(Color.white)
         .frame(height: L.tableHeader)
         .background(Theme.accent)

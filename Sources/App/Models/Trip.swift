@@ -91,7 +91,7 @@ struct Trip: Identifiable, Hashable {
         return destination.city.isEmpty ? destination.singleLine : destination.city
     }
 
-    var routeDescription: String { returnEnabled ? "Hin & zurück" : "Einfache Fahrt" }
+    var routeDescription: String { returnEnabled ? "Hin- und Rückfahrt" : "Einfache Fahrt" }
 
     /// Wirksamer km-Satz: eigener Satz der Fahrt, sonst der aus den Einstellungen.
     func rate(default defaultRate: Double) -> Double { ratePerKm ?? defaultRate }
