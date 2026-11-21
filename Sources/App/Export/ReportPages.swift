@@ -50,11 +50,11 @@ struct ReportLayout {
     let colStart: CGFloat = 146
     let colDestination: CGFloat = 137
     // Hochformat – Summe ≈ 531 pt (Kunde+Anlass und Start→Ziel zusammengefasst)
-    let colCustomerPurpose: CGFloat = 124
-    let colRoute: CGFloat = 176
+    let colCustomerPurpose: CGFloat = 120
+    let colRoute: CGFloat = 168
 
-    var colDateEffective: CGFloat { portrait ? 58 : colDate }
-    var colKm: CGFloat { portrait ? 40 : 50 }
+    var colDateEffective: CGFloat { portrait ? 62 : colDate }
+    var colKm: CGFloat { portrait ? 44 : 50 }
     var colTotal: CGFloat { portrait ? 44 : 54 }
     var colAmount: CGFloat { portrait ? 49 : 52 }
     /// Breite der Textspalten vor den Zahlen (für Summenzeilen)
