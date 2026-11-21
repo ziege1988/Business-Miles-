@@ -236,12 +236,10 @@ export function makeXlsx(report) {
   addRow([]);
   if (report.hasPendingKm) addRow([text(0, "Hinweis: Einige Fahrten enthalten noch keine berechneten Kilometer (Spalte „Bemerkung“).", S.muted)]);
   addRow([text(0, `Erstellt am ${fmt.date(report.createdAt)} mit Business Miles. Kilometer laut Routenberechnung bzw. manueller Angabe; Startadresse je Fahrt wie zum Zeitpunkt der Erfassung.`, S.muted)]);
-  addRow([]);
-  addRow([text(0, "Ort, Datum: ______________________________        Unterschrift: ______________________________", S.normal)]);
 
   const cols = WIDTHS.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join("");
   const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="A1:N${Math.max(r, 1)}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="${headerRow}" topLeftCell="A${headerRow + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols>${cols}</cols><sheetData>${rows.join("")}</sheetData><pageMargins left="0.3" right="0.3" top="0.5" bottom="0.5" header="0.3" footer="0.3"/><pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/><headerFooter><oddFooter>&amp;L${x(report.title)}&amp;RSeite &amp;P von &amp;N</oddFooter></headerFooter></worksheet>`;
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="A1:N${Math.max(r, 1)}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="${headerRow}" topLeftCell="A${headerRow + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols>${cols}</cols><sheetData>${rows.join("")}</sheetData><pageMargins left="0.3" right="0.3" top="0.5" bottom="0.5" header="0.3" footer="0.3"/><pageSetup paperSize="9" orientation="${report.portrait ? "portrait" : "landscape"}" fitToWidth="1" fitToHeight="0"/><headerFooter><oddFooter>&amp;L${x(report.title)}&amp;RSeite &amp;P von &amp;N</oddFooter></headerFooter></worksheet>`;
 
   const sheetName = (report.month ? `${fmt.MONTHS[report.month - 1]} ${report.year}` : `Fahrten ${report.year}`).slice(0, 31);
   return zip([
@@ -268,7 +266,8 @@ const SOFT = [227, 243, 243];
 
 export function makePdf(report) {
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+  const portrait = Boolean(report.portrait);
+  const doc = new jsPDF({ orientation: portrait ? "portrait" : "landscape", unit: "pt", format: "a4" });
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
   const M = 32;
@@ -283,51 +282,65 @@ export function makePdf(report) {
   doc.text(`Nachweis betrieblich veranlasster Fahrten · Kilometersatz ${report.rateLabel}`, M, M + 42);
   const info = [["Name", h.name], ["Firma", h.company], ["Anschrift", h.address], ["Steuernummer", h.taxNumber], ["Fahrzeug", h.vehicle]]
     .filter(([, v]) => v);
-  let iy = M + 4;
+  // Querformat: Angaben rechts neben dem Titel · Hochformat: darunter
+  const infoX = portrait ? M : W - M - 300;
+  let iy = portrait ? M + 62 : M + 4;
   for (const [label, value] of info) {
-    doc.setTextColor(...MUTED); doc.setFontSize(8); doc.text(label, W - M - 300, iy);
-    doc.setTextColor(...INK); doc.setFontSize(8.5); doc.text(doc.splitTextToSize(value, 225)[0], W - M - 225, iy);
+    doc.setTextColor(...MUTED); doc.setFontSize(8); doc.text(label, infoX, iy);
+    doc.setTextColor(...INK); doc.setFontSize(8.5); doc.text(doc.splitTextToSize(value, portrait ? 380 : 225)[0], infoX + 75, iy);
     iy += 12;
   }
+  const tableTop = portrait ? Math.max(iy + 10, M + 100) : M + 70;
 
   const body = [];
   for (const g of report.groups) {
-    body.push([{ content: `${fmt.MONTHS[g.month - 1]} ${report.year}`, colSpan: 9,
+    body.push([{ content: `${fmt.MONTHS[g.month - 1]} ${report.year}`, colSpan: portrait ? 7 : 9,
       styles: { fillColor: SOFT, fontStyle: "bold", textColor: INK } }]);
     for (const r of g.rows) {
       const dest = r.returnEnabled && r.returnTo && r.returnTo !== r.start ? `${r.destination}\nzurück: ${r.returnTo}` : r.destination;
+      const dateCell = r.timeRange ? `${fmt.date(r.date)}\n${r.timeRange}` : fmt.date(r.date);
+      const textCells = portrait
+        ? [[r.customer, r.purpose, r.note].filter(Boolean).join("\n"),
+           `${r.start}\n» ${r.destination}` + (r.returnEnabled && r.returnTo && r.returnTo !== r.start ? `\nzurück: ${r.returnTo}` : "")]
+        : [r.customer, [r.purpose, r.note].filter(Boolean).join("\n"), r.start, dest];
       body.push([
-        r.timeRange ? `${fmt.date(r.date)}\n${r.timeRange}` : fmt.date(r.date),
-        r.customer,
-        [r.purpose, r.note].filter(Boolean).join("\n"),
-        r.start, dest,
+        dateCell,
+        ...textCells,
         fmt.num(r.outboundKm), r.returnEnabled ? fmt.num(r.returnKm) : "–",
         r.kmPending ? "folgt" : fmt.num(r.totalKm),
         report.mixedRates ? `${fmt.euro(r.amount)}\n${fmt.euro(r.rate)}/km` : fmt.euro(r.amount),
       ]);
     }
     const tot = { fillColor: [210, 234, 234], fontStyle: "bold" };
-    body.push([{ content: `Summe ${fmt.MONTHS[g.month - 1]}`, colSpan: 5, styles: tot },
+    body.push([{ content: `Summe ${fmt.MONTHS[g.month - 1]}`, colSpan: portrait ? 3 : 5, styles: tot },
       { content: fmt.num(g.outboundKm), styles: tot }, { content: fmt.num(g.returnKm), styles: tot },
       { content: fmt.num(g.totalKm), styles: tot }, { content: fmt.euro(g.amount), styles: tot }]);
   }
 
   window.autoTable(doc, {
-    startY: M + 70,
+    startY: tableTop,
     margin: { left: M, right: M, top: M + 22, bottom: M + 14 },
-    head: [["Datum", "Kunde / Partner", "Anlass / Zweck", "Start", "Ziel", "Hin km", "Rück km", "Gesamt", "Betrag"]],
+    head: [portrait
+      ? ["Datum", "Kunde / Anlass", "Strecke (Start » Ziel)", "Hin km", "Rück km", "Gesamt", "Betrag"]
+      : ["Datum", "Kunde / Partner", "Anlass / Zweck", "Start", "Ziel", "Hin km", "Rück km", "Gesamt", "Betrag"]],
     body,
     theme: "plain",
     styles: { font: "helvetica", fontSize: 7.8, textColor: INK, cellPadding: 3.5, overflow: "linebreak", valign: "top",
       lineColor: [226, 231, 236], lineWidth: { bottom: 0.4 } },
     headStyles: { fillColor: TEAL, textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
-    columnStyles: {
-      0: { cellWidth: 56 }, 1: { cellWidth: 112 }, 2: { cellWidth: 100 }, 3: { cellWidth: 146 }, 4: { cellWidth: 156 },
-      5: { cellWidth: 48, halign: "right" }, 6: { cellWidth: 48, halign: "right" },
-      7: { cellWidth: 52, halign: "right", fontStyle: "bold" }, 8: { cellWidth: 60, halign: "right" },
-    },
+    columnStyles: portrait
+      ? {
+        0: { cellWidth: 56 }, 1: { cellWidth: 124 }, 2: { cellWidth: 175 },
+        3: { cellWidth: 40, halign: "right" }, 4: { cellWidth: 42, halign: "right" },
+        5: { cellWidth: 44, halign: "right", fontStyle: "bold" }, 6: { cellWidth: 50, halign: "right" },
+      }
+      : {
+        0: { cellWidth: 56 }, 1: { cellWidth: 112 }, 2: { cellWidth: 100 }, 3: { cellWidth: 146 }, 4: { cellWidth: 156 },
+        5: { cellWidth: 48, halign: "right" }, 6: { cellWidth: 48, halign: "right" },
+        7: { cellWidth: 52, halign: "right", fontStyle: "bold" }, 8: { cellWidth: 60, halign: "right" },
+      },
     didParseCell: (d) => {
-      if (d.section === "head" && d.column.index >= 5) d.cell.styles.halign = "right";
+      if (d.section === "head" && d.column.index >= (portrait ? 3 : 5)) d.cell.styles.halign = "right";
     },
     didDrawPage: (d) => {
       if (d.pageNumber > 1) {
@@ -339,21 +352,17 @@ export function makePdf(report) {
     },
   });
 
-  // Summen + Unterschrift
-  let y = doc.lastAutoTable.finalY + 26;
-  if (y > H - M - 80) { doc.addPage(); y = M + 30; }
-  const block = [["Fahrten", String(report.tripCount)], ["Kilometer gesamt", fmt.km(report.totalKm)], ["Kilometerpauschale", fmt.euro(report.amount)]];
+  // Summen
+  let y = doc.lastAutoTable.finalY + 18;
+  // Summenblock (Bezeichnung + Wert) braucht ca. 18 pt – nur bei echtem Platzmangel neue Seite
+  if (y + 18 > H - M) { doc.addPage(); y = M + 30; }
+  const block = [["Fahrten", String(report.tripCount)], ["Kilometer gesamt", fmt.km(report.totalKm)], ["Fahrtkosten", fmt.euro(report.amount)]];
   let bx = M;
   for (const [label, value] of block) {
     doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(...MUTED); doc.text(label, bx, y);
     doc.setFont("helvetica", "bold"); doc.setFontSize(13); doc.setTextColor(...DEEP); doc.text(value, bx, y + 16);
     bx += 150;
   }
-  y += 52;
-  doc.setDrawColor(...INK); doc.setLineWidth(0.6);
-  doc.line(M, y, M + 220, y); doc.line(M + 270, y, M + 490, y);
-  doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...MUTED);
-  doc.text("Ort, Datum", M, y + 10); doc.text("Unterschrift", M + 270, y + 10);
 
   // Fußzeilen
   const pages = doc.getNumberOfPages();
@@ -377,7 +386,7 @@ export async function makeImages(report) {
     for (const r of g.rows) items.push({ type: "row", r });
     items.push({ type: "total", label: `Summe ${fmt.MONTHS[g.month - 1]}`, km: g.totalKm, amount: g.amount });
   }
-  const H_ROW = 78, H_MONTH = 50, H_TOTAL = 50, H_SUMMARY = 230;
+  const H_ROW = 78, H_MONTH = 50, H_TOTAL = 50, H_SUMMARY = 130;
   const heightOf = (it) => (it.type === "row" ? H_ROW : it.type === "month" ? H_MONTH : H_TOTAL);
   const pages = [];
   let cur = [], used = 0, cap = IMG.h - 2 * IMG.m - 300 - 60;
@@ -457,17 +466,12 @@ function drawImagePage(report, items, index, count, last) {
 
   if (last) {
     y += 30;
-    const block = [["Fahrten", String(report.tripCount)], ["Kilometer gesamt", fmt.km(report.totalKm)], ["Pauschale", fmt.euro(report.amount)]];
+    const block = [["Fahrten", String(report.tripCount)], ["Kilometer gesamt", fmt.km(report.totalKm)], ["Fahrtkosten", fmt.euro(report.amount)]];
     block.forEach(([l, v], i) => {
       const x0 = M + i * 370;
       g.fillStyle = rgb(MUTED); g.font = font(20); g.fillText(l, x0, y + 20);
       g.fillStyle = rgb(DEEP); g.font = font(36, 700); g.fillText(v, x0, y + 62);
     });
-    y += 150;
-    g.fillStyle = rgb(INK);
-    g.fillRect(M, y, 480, 2); g.fillRect(M + 560, y, 480, 2);
-    g.fillStyle = rgb(MUTED); g.font = font(18);
-    g.fillText("Ort, Datum", M, y + 26); g.fillText("Unterschrift", M + 560, y + 26);
   }
 
   g.fillStyle = rgb(MUTED); g.font = font(18);

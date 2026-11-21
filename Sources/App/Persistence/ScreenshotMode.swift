@@ -55,6 +55,9 @@ enum ScreenshotMode {
         if let year = years.first(where: { $0.year == 2026 }) {
             let report = ReportData.make(summary: year, month: nil, settings: store.settings)
             try? ExportService.makePDF(report).write(to: dir.appendingPathComponent("mac-Fahrtenaufstellung_2026.pdf"))
+            var portrait = report
+            portrait.portrait = true
+            try? ExportService.makePDF(portrait).write(to: dir.appendingPathComponent("mac-Fahrtenaufstellung_2026_hoch.pdf"))
             try? XLSXExporter.make(report).write(to: dir.appendingPathComponent("mac-Fahrtenaufstellung_2026.xlsx"))
         }
 

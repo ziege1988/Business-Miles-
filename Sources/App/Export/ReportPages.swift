@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Teilt den Bericht auf A4-Querformat-Seiten auf.
+/// Teilt den Bericht auf A4-Seiten auf (quer oder hoch).
 struct ReportPage: Identifiable {
     enum Item: Identifiable {
         case monthHeader(String)
@@ -15,13 +15,6 @@ struct ReportPage: Identifiable {
             }
         }
 
-        var height: CGFloat {
-            switch self {
-            case .monthHeader: ReportLayout.monthHeaderHeight
-            case .row: ReportLayout.rowHeight
-            case .monthTotal: ReportLayout.totalHeight
-            }
-        }
     }
 
     let index: Int
@@ -32,29 +25,53 @@ struct ReportPage: Identifiable {
     var isFirst: Bool { index == 0 }
 }
 
-enum ReportLayout {
-    static let pageSize = CGSize(width: 841.89, height: 595.28)   // A4 quer in pt
-    static let margin: CGFloat = 32
-    static let firstPageHeader: CGFloat = 112
-    static let otherPageHeader: CGFloat = 30
-    static let tableHeader: CGFloat = 24
-    static let footer: CGFloat = 22
-    static let summaryBlock: CGFloat = 92
-    static let monthHeaderHeight: CGFloat = 22
-    static let rowHeight: CGFloat = 30
-    static let totalHeight: CGFloat = 22
+/// Seitenmaße und Spalten – Querformat (viele Spalten) oder Hochformat (zusammengefasste Spalten).
+struct ReportLayout {
+    let portrait: Bool
 
-    // Spaltenbreiten – Summe = Seitenbreite − 2 × Rand (≈ 778 pt)
-    static let colDate: CGFloat = 66
-    static let colCustomer: CGFloat = 118
-    static let colPurpose: CGFloat = 104
-    static let colStart: CGFloat = 146
-    static let colDestination: CGFloat = 137
-    static let colKm: CGFloat = 50
-    static let colTotal: CGFloat = 54
-    static let colAmount: CGFloat = 52
+    init(portrait: Bool) { self.portrait = portrait }
+    init(for report: ReportData) { self.portrait = report.portrait }
 
-    static func paginate(_ report: ReportData) -> [ReportPage] {
+    var pageSize: CGSize { portrait ? CGSize(width: 595.28, height: 841.89) : CGSize(width: 841.89, height: 595.28) }
+    let margin: CGFloat = 32
+    var firstPageHeader: CGFloat { portrait ? 150 : 112 }
+    let otherPageHeader: CGFloat = 30
+    let tableHeader: CGFloat = 24
+    let footer: CGFloat = 22
+    let summaryBlock: CGFloat = 54
+    let monthHeaderHeight: CGFloat = 22
+    var rowHeight: CGFloat { portrait ? 40 : 30 }
+    let totalHeight: CGFloat = 22
+
+    // Querformat – Summe ≈ 778 pt
+    let colDate: CGFloat = 66
+    let colCustomer: CGFloat = 118
+    let colPurpose: CGFloat = 104
+    let colStart: CGFloat = 146
+    let colDestination: CGFloat = 137
+    // Hochformat – Summe ≈ 531 pt (Kunde+Anlass und Start→Ziel zusammengefasst)
+    let colCustomerPurpose: CGFloat = 124
+    let colRoute: CGFloat = 176
+
+    var colDateEffective: CGFloat { portrait ? 58 : colDate }
+    var colKm: CGFloat { portrait ? 40 : 50 }
+    var colTotal: CGFloat { portrait ? 44 : 54 }
+    var colAmount: CGFloat { portrait ? 49 : 52 }
+    /// Breite der Textspalten vor den Zahlen (für Summenzeilen)
+    var textColumnsWidth: CGFloat {
+        portrait ? colDateEffective + colCustomerPurpose + colRoute
+                 : colDate + colCustomer + colPurpose + colStart + colDestination
+    }
+
+    func height(of item: ReportPage.Item) -> CGFloat {
+        switch item {
+        case .monthHeader: monthHeaderHeight
+        case .row: rowHeight
+        case .monthTotal: totalHeight
+        }
+    }
+
+    func paginate(_ report: ReportData) -> [ReportPage] {
         var items: [ReportPage.Item] = []
         for g in report.groups {
             let name = "\(Fmt.monthName(g.month)) \(report.year)"
@@ -74,7 +91,7 @@ enum ReportLayout {
         for item in items {
             // Monatsüberschrift nicht allein am Seitenende stehen lassen
             let needed: CGFloat
-            if case .monthHeader = item { needed = item.height + rowHeight } else { needed = item.height }
+            if case .monthHeader = item { needed = height(of: item) + rowHeight } else { needed = height(of: item) }
             if used + needed > capacity, !current.isEmpty {
                 pages.append(ReportPage(index: pages.count, count: 0, items: current, showsSummary: false))
                 current = []
@@ -82,7 +99,7 @@ enum ReportLayout {
                 capacity = body - otherPageHeader
             }
             current.append(item)
-            used += item.height
+            used += height(of: item)
         }
 
         if used + summaryBlock <= capacity || current.isEmpty {
@@ -102,7 +119,7 @@ struct ReportPageView: View {
     let report: ReportData
     let page: ReportPage
 
-    private typealias L = ReportLayout
+    private var L: ReportLayout { ReportLayout(for: report) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -131,8 +148,27 @@ struct ReportPageView: View {
 
     // MARK: Kopf
 
+    @ViewBuilder
     private var firstHeader: some View {
-        HStack(alignment: .top, spacing: 16) {
+        if L.portrait {
+            VStack(alignment: .leading, spacing: 10) {
+                titleBlock
+                infoBlock.frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(height: L.firstPageHeader - 12, alignment: .top)
+            .padding(.bottom, 12)
+        } else {
+            HStack(alignment: .top, spacing: 16) {
+                titleBlock
+                Spacer()
+                infoBlock.frame(width: 300, alignment: .leading)
+            }
+            .frame(height: L.firstPageHeader - 12, alignment: .top)
+            .padding(.bottom, 12)
+        }
+    }
+
+    private var titleBlock: some View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
                     LogoMark(size: 22)
@@ -147,7 +183,9 @@ struct ReportPageView: View {
                     .font(.system(size: 9))
                     .foregroundStyle(Theme.secondaryText)
             }
-            Spacer()
+    }
+
+    private var infoBlock: some View {
             VStack(alignment: .leading, spacing: 2) {
                 infoLine("Name", report.header.name)
                 infoLine("Firma", report.header.company)
@@ -155,10 +193,6 @@ struct ReportPageView: View {
                 infoLine("Steuernummer", report.header.taxNumber)
                 infoLine("Fahrzeug", [report.header.vehicleType, report.header.vehicle].filter { !$0.isEmpty }.joined(separator: " · "))
             }
-            .frame(width: 300, alignment: .leading)
-        }
-        .frame(height: L.firstPageHeader - 12, alignment: .top)
-        .padding(.bottom, 12)
     }
 
     @ViewBuilder
@@ -190,11 +224,17 @@ struct ReportPageView: View {
 
     private var tableHeader: some View {
         HStack(spacing: 0) {
-            cell("Datum", L.colDate)
-            cell("Kunde / Partner", L.colCustomer)
-            cell("Anlass / Zweck", L.colPurpose)
-            cell("Start", L.colStart)
-            cell("Ziel", L.colDestination)
+            if L.portrait {
+                cell("Datum", L.colDateEffective)
+                cell("Kunde / Anlass", L.colCustomerPurpose)
+                cell("Strecke (Start → Ziel)", L.colRoute)
+            } else {
+                cell("Datum", L.colDate)
+                cell("Kunde / Partner", L.colCustomer)
+                cell("Anlass / Zweck", L.colPurpose)
+                cell("Start", L.colStart)
+                cell("Ziel", L.colDestination)
+            }
             cell("Hin km", L.colKm, trailing: true)
             cell("Rück km", L.colKm, trailing: true)
             cell("Gesamt", L.colTotal, trailing: true)
@@ -216,14 +256,22 @@ struct ReportPageView: View {
 
     private func rowView(_ row: ReportData.Row) -> some View {
         HStack(alignment: .top, spacing: 0) {
-            cell(row.timeRange.isEmpty ? Fmt.date(row.date) : "\(Fmt.date(row.date))\n\(row.timeRange)", L.colDate, lines: 2)
-            cell(row.customer, L.colCustomer, lines: 2)
-            cell([row.purpose, row.note].filter { !$0.isEmpty }.joined(separator: "\n"), L.colPurpose, lines: 2)
-            cell(row.start, L.colStart, lines: 2)
-            cell(row.returnEnabled && row.returnTo != row.start && !row.returnTo.isEmpty
-                    ? "\(row.destination)\n↩ \(row.returnTo)"
-                    : row.destination,
-                 L.colDestination, lines: 2)
+            let dateText = row.timeRange.isEmpty ? Fmt.date(row.date) : "\(Fmt.date(row.date))\n\(row.timeRange)"
+            let returnText = row.returnEnabled && row.returnTo != row.start && !row.returnTo.isEmpty ? row.returnTo : ""
+            if L.portrait {
+                cell(dateText, L.colDateEffective, lines: 2)
+                cell([row.customer, row.purpose, row.note].filter { !$0.isEmpty }.joined(separator: "\n"),
+                     L.colCustomerPurpose, lines: 3)
+                cell("\(row.start)\n→ \(row.destination)" + (returnText.isEmpty ? "" : "\n↩ \(returnText)"),
+                     L.colRoute, lines: 3)
+            } else {
+                cell(dateText, L.colDate, lines: 2)
+                cell(row.customer, L.colCustomer, lines: 2)
+                cell([row.purpose, row.note].filter { !$0.isEmpty }.joined(separator: "\n"), L.colPurpose, lines: 2)
+                cell(row.start, L.colStart, lines: 2)
+                cell(returnText.isEmpty ? row.destination : "\(row.destination)\n↩ \(returnText)",
+                     L.colDestination, lines: 2)
+            }
             cell(Fmt.number(row.outboundKm), L.colKm, trailing: true)
             cell(row.returnEnabled ? Fmt.number(row.returnKm) : "–", L.colKm, trailing: true)
             cell(row.kmPending ? "folgt" : Fmt.number(row.totalKm), L.colTotal, trailing: true, bold: true)
@@ -240,7 +288,7 @@ struct ReportPageView: View {
         HStack(spacing: 0) {
             Text(label)
                 .padding(.horizontal, 4)
-                .frame(width: L.colDate + L.colCustomer + L.colPurpose + L.colStart + L.colDestination, alignment: .leading)
+                .frame(width: L.textColumnsWidth, alignment: .leading)
             cell(Fmt.number(outbound), L.colKm, trailing: true)
             cell(Fmt.number(back), L.colKm, trailing: true)
             cell(Fmt.number(total), L.colTotal, trailing: true)
@@ -264,17 +312,11 @@ struct ReportPageView: View {
     // MARK: Summe & Fuß
 
     private var summary: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 24) {
-                summaryValue("Fahrten", String(report.tripCount))
-                summaryValue("Kilometer gesamt", Fmt.km(report.totalKm))
-                summaryValue("Kilometerpauschale", Fmt.euro(report.amount))
-                Spacer()
-            }
-            HStack(spacing: 40) {
-                signatureLine("Ort, Datum")
-                signatureLine("Unterschrift")
-            }
+        HStack(spacing: 24) {
+            summaryValue("Fahrten", String(report.tripCount))
+            summaryValue("Kilometer gesamt", Fmt.km(report.totalKm))
+            summaryValue("Fahrtkosten", Fmt.euro(report.amount))
+            Spacer()
         }
         .padding(.top, 14)
         .frame(height: L.summaryBlock, alignment: .top)
@@ -285,14 +327,6 @@ struct ReportPageView: View {
             Text(label).font(.system(size: 8)).foregroundStyle(Theme.secondaryText)
             Text(value).font(.system(size: 13, weight: .bold)).foregroundStyle(Theme.accentDeep)
         }
-    }
-
-    private func signatureLine(_ label: String) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Rectangle().fill(Theme.ink.opacity(0.6)).frame(width: 220, height: 0.6)
-            Text(label).font(.system(size: 7.5)).foregroundStyle(Theme.secondaryText)
-        }
-        .padding(.top, 16)
     }
 
     private var footer: some View {

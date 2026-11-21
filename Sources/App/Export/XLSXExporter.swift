@@ -141,8 +141,6 @@ enum XLSXExporter {
             addRow([text(ref(0), "Hinweis: Einige Fahrten enthalten noch keine berechneten Kilometer (Spalte „Bemerkung“).", S.muted)])
         }
         addRow([text(ref(0), "Erstellt am \(Fmt.date(report.createdAt)) mit Business Miles. Kilometer laut Routenberechnung bzw. manueller Angabe; Startadresse je Fahrt wie zum Zeitpunkt der Erfassung.", S.muted)])
-        addRow([])
-        addRow([text(ref(0), "Ort, Datum: ______________________________        Unterschrift: ______________________________", S.normal)])
 
         let cols = widths.enumerated().map { i, w in
             "<col min=\"\(i + 1)\" max=\"\(i + 1)\" width=\"\(w)\" customWidth=\"1\"/>"
@@ -158,7 +156,7 @@ enum XLSXExporter {
         <cols>\(cols)</cols>\
         <sheetData>\(rows.joined())</sheetData>\
         <pageMargins left="0.3" right="0.3" top="0.5" bottom="0.5" header="0.3" footer="0.3"/>\
-        <pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/>\
+        <pageSetup paperSize="9" orientation="\(report.portrait ? "portrait" : "landscape")" fitToWidth="1" fitToHeight="0"/>\
         <headerFooter><oddFooter>&amp;L\(xmlEscape(report.title))&amp;RSeite &amp;P von &amp;N</oddFooter></headerFooter>\
         </worksheet>
         """

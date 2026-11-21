@@ -49,6 +49,8 @@ struct ReportData {
     let header: Header
     let groups: [MonthGroup]   // aufsteigend nach Monat
     let createdAt: Date
+    /// PDF/Excel im Hochformat statt quer
+    var portrait: Bool = false
 
     var periodLabel: String {
         if let month { return "\(Fmt.monthName(month)) \(year)" }

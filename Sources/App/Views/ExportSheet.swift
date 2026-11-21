@@ -10,9 +10,12 @@ struct ExportSheet: View {
     @State private var scope = 0
     @State private var status: String? = nil
     @State private var isError = false
+    @AppStorage("exportPortrait") private var portrait = false
 
     private var report: ReportData {
-        ReportData.make(summary: summary, month: scope == 0 ? nil : scope, settings: settings)
+        var r = ReportData.make(summary: summary, month: scope == 0 ? nil : scope, settings: settings)
+        r.portrait = portrait
+        return r
     }
 
     var body: some View {
@@ -37,9 +40,17 @@ struct ExportSheet: View {
                     }
                 }
 
+                Section("Seitenformat") {
+                    Picker("Ausrichtung", selection: $portrait) {
+                        Label("Querformat", systemImage: "rectangle").tag(false)
+                        Label("Hochformat", systemImage: "rectangle.portrait").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                }
+
                 Section {
                     exportButton(.excel, icon: "tablecells", subtitle: "Bearbeitbare Tabelle (.xlsx) mit Monatssummen")
-                    exportButton(.pdf, icon: "doc.richtext", subtitle: "Druckfertige Aufstellung (A4 quer)")
+                    exportButton(.pdf, icon: "doc.richtext", subtitle: portrait ? "Druckfertige Aufstellung (A4 hoch)" : "Druckfertige Aufstellung (A4 quer)")
                 } header: {
                     Text("Format")
                 } footer: {

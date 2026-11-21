@@ -45,16 +45,17 @@ enum ExportService {
     // MARK: PDF
 
     static func makePDF(_ report: ReportData) -> Data {
-        let pages = ReportLayout.paginate(report)
+        let layout = ReportLayout(for: report)
+        let pages = layout.paginate(report)
         let data = NSMutableData()
-        var mediaBox = CGRect(origin: .zero, size: ReportLayout.pageSize)
+        var mediaBox = CGRect(origin: .zero, size: layout.pageSize)
         guard let consumer = CGDataConsumer(data: data as CFMutableData),
               let pdf = CGContext(consumer: consumer, mediaBox: &mediaBox, nil)
         else { return Data() }
 
         for page in pages {
             let renderer = ImageRenderer(content: ReportPageView(report: report, page: page))
-            renderer.proposedSize = ProposedViewSize(ReportLayout.pageSize)
+            renderer.proposedSize = ProposedViewSize(layout.pageSize)
             renderer.render { _, draw in
                 pdf.beginPDFPage(nil)
                 draw(pdf)

@@ -736,9 +736,12 @@ function openExport() {
           ${months.map((m) => `<option value="${m.month}">${fmt.MONTHS[m.month - 1]} ${s.year}</option>`).join("")}</select></div>
         <div class="field"><span class="unit x-info"></span></div>
       </div></div>
+      <div class="group"><label>Seitenformat (PDF &amp; Excel)</label>
+        <div class="segmented x-orient"><button type="button" data-v="landscape">Querformat</button><button type="button" data-v="portrait">Hochformat</button></div>
+      </div>
       <div class="group"><label>Format</label><div class="fields">
         <button class="export-btn" data-x="xlsx"><span class="ic">${ICON.table}</span><span><b>Excel</b><small>Bearbeitbare Tabelle (.xlsx) mit Monatssummen</small></span></button>
-        <button class="export-btn" data-x="pdf"><span class="ic">${ICON.doc}</span><span><b>PDF</b><small>Druckfertige Aufstellung (A4 quer)</small></span></button>
+        <button class="export-btn" data-x="pdf"><span class="ic">${ICON.doc}</span><span><b>PDF</b><small class="x-pdf-sub">Druckfertige Aufstellung (A4 quer)</small></span></button>
         <button class="export-btn" data-x="png"><span class="ic">${ICON.photo}</span><span><b>Bild für die Galerie</b><small>Jede Seite als Bild – in Fotos sichern</small></span></button>
       </div><p class="hint">Nach dem Erstellen öffnet „Teilen / Sichern“ das iPhone-Menü: „In Dateien sichern“, „Bilder sichern“ oder z. B. per Mail an die Steuerberatung.</p></div>
       <div class="group x-ready" hidden></div>
@@ -746,7 +749,17 @@ function openExport() {
   const q = (sel) => $(sel, el);
   let files = null;
 
-  const report = () => exporter.buildReport(s, Number(q(".x-scope").value) || null, store.settings);
+  let portrait = false;
+  try { portrait = localStorage.getItem("bm.exportPortrait") === "1"; } catch { /* egal */ }
+  const report = () => {
+    const r = exporter.buildReport(s, Number(q(".x-scope").value) || null, store.settings);
+    r.portrait = portrait;
+    return r;
+  };
+  const updateOrientation = () => {
+    for (const b of q(".x-orient").children) b.classList.toggle("on", (b.dataset.v === "portrait") === portrait);
+    q(".x-pdf-sub").textContent = portrait ? "Druckfertige Aufstellung (A4 hoch)" : "Druckfertige Aufstellung (A4 quer)";
+  };
   const info = () => {
     const r = report();
     q(".x-info").textContent = `${fmt.tripCount(r.tripCount)} · ${fmt.km(r.totalKm)} · ${fmt.euro(r.amount)}`;
@@ -757,6 +770,15 @@ function openExport() {
     if (pending) q(".x-info").textContent += " · Achtung: km noch nicht vollständig";
   };
   q(".x-scope").addEventListener("change", info);
+  q(".x-orient").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    portrait = b.dataset.v === "portrait";
+    try { localStorage.setItem("bm.exportPortrait", portrait ? "1" : "0"); } catch { /* egal */ }
+    updateOrientation();
+    q(".x-ready").hidden = true;
+  });
+  updateOrientation();
   info();
 
   el.addEventListener("click", async (e) => {
