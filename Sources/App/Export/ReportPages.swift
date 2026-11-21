@@ -241,6 +241,7 @@ struct ReportPageView: View {
             cell("Betrag", L.colAmount, trailing: true)
         }
         .font(.system(size: 8.5, weight: .semibold))
+        .minimumScaleFactor(0.7)   // im Hochformat lieber etwas kleiner als abgeschnitten („Rück km“)
         .foregroundStyle(Color.white)
         .frame(height: L.tableHeader)
         .background(Theme.accent)
