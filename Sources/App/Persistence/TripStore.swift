@@ -16,6 +16,9 @@ final class TripStore: ObservableObject {
         case failed(String)
     }
 
+    /// Eine Instanz für Fenster und Schreibtisch-Kachel (die Kachel startet ohne Fenster).
+    static let shared: TripStore = ScreenshotMode.isActive ? TripStore(preview: ScreenshotMode.sampleData()) : TripStore()
+
     nonisolated static let fileName = "business-miles.json"
 
     @Published private(set) var doc = DataFile()

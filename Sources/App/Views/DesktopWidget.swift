@@ -15,13 +15,20 @@ final class DesktopWidgetController: ObservableObject {
     @Published var size: TileSize {
         didSet { UserDefaults.standard.set(size.rawValue, forKey: Keys.size); rebuild() }
     }
-    @Published private(set) var launchAtLogin: Bool = SMAppService.mainApp.status == .enabled
+    @Published private(set) var launchAtLogin: Bool = LoginLauncher.isEnabled
     @Published private(set) var loginItemMessage: String?
+    @Published var appearance: TileAppearance {
+        didSet {
+            UserDefaults.standard.set(appearance.rawValue, forKey: Keys.appearance)
+            panel?.appearance = appearance.nsAppearance
+        }
+    }
 
     private enum Keys {
         static let enabled = "desktopWidget.enabled"
         static let size = "desktopWidget.size"
         static let origin = "desktopWidget.origin"
+        static let appearance = "desktopWidget.appearance"
     }
 
     private var panel: NSPanel?
@@ -33,6 +40,7 @@ final class DesktopWidgetController: ObservableObject {
         let defaults = UserDefaults.standard
         isEnabled = defaults.object(forKey: Keys.enabled) as? Bool ?? true
         size = TileSize(rawValue: defaults.string(forKey: Keys.size) ?? "") ?? .medium
+        appearance = TileAppearance(rawValue: defaults.string(forKey: Keys.appearance) ?? "") ?? .light
     }
 
     func start(store: TripStore, router: AppRouter) {
@@ -73,6 +81,7 @@ final class DesktopWidgetController: ObservableObject {
         panel.isMovableByWindowBackground = false   // Verschieben übernimmt die Kachel selbst (siehe drag…)
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
+        panel.appearance = appearance.nsAppearance
 
         let view = DesktopWidgetView(size: size,
                                      onDrag: { [weak self] phase in self?.drag(phase) },
@@ -126,8 +135,11 @@ final class DesktopWidgetController: ObservableObject {
         if let main = NSApp.windows.first(where: { !($0 is NSPanel) && $0.canBecomeMain && $0.title == "Business Miles" })
             ?? NSApp.windows.first(where: { !($0 is NSPanel) && $0.canBecomeMain && $0.isVisible }) {
             main.makeKeyAndOrderFront(nil)
+        } else if let open = router?.openMainWindow {
+            open()
         } else {
-            router?.openMainWindow?()
+            // Noch nie ein Fenster gehabt (Start nur mit Kachel): wie ein Klick aufs Dock-Symbol
+            NSWorkspace.shared.open(Bundle.main.bundleURL)
         }
     }
 
@@ -135,16 +147,14 @@ final class DesktopWidgetController: ObservableObject {
 
     func setLaunchAtLogin(_ enabled: Bool) {
         do {
-            if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
-            loginItemMessage = nil
+            if enabled { try LoginLauncher.enable() } else { LoginLauncher.disable() }
+            loginItemMessage = enabled
+                ? "Aktiv. Falls macOS meldet „Hintergrundobjekt hinzugefügt“, bitte erlauben (Systemeinstellungen → Allgemein → Anmeldeobjekte)."
+                : nil
         } catch {
-            loginItemMessage = "Autostart konnte nicht geändert werden: \(error.localizedDescription). Alternativ: Systemeinstellungen → Allgemein → Anmeldeobjekte."
+            loginItemMessage = "Autostart konnte nicht eingerichtet werden: \(error.localizedDescription)"
         }
-        launchAtLogin = SMAppService.mainApp.status == .enabled
-        if SMAppService.mainApp.status == .requiresApproval {
-            loginItemMessage = "Bitte in Systemeinstellungen → Allgemein → Anmeldeobjekte „Business Miles“ erlauben."
-            SMAppService.openSystemSettingsLoginItems()
-        }
+        launchAtLogin = LoginLauncher.isEnabled
     }
 }
 
@@ -166,12 +176,13 @@ struct DesktopWidgetView: View {
         TimelineView(.periodic(from: .now, by: 300)) { context in
             MilesWidgetContent(entry: MilesEntry(date: context.date, snapshot: WidgetSync.snapshot(for: store.trips)),
                                family: size,
-                               onNewTrip: size == .medium ? onNewTrip : nil)
+                               onNewTrip: size == .medium ? onNewTrip : nil,
+                               dark: isDark)
                 .padding(16)
                 .frame(width: size.contentSize.width, height: size.contentSize.height)
                 .background(
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .fill(Color.white)
+                        .fill(isDark ? TileAppearance.darkBackground : Color.white)
                         .shadow(color: .black.opacity(0.25), radius: 8, x: 0, y: 3)
                 )
                 .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
@@ -189,9 +200,12 @@ struct DesktopWidgetView: View {
                     Button("Business Miles beenden") { NSApp.terminate(nil) }
                 }
                 .padding(14)
-                .preferredColorScheme(.light)
         }
     }
+
+    /// Folgt der Einstellung (über die Darstellung des Kachel-Fensters)
+    @Environment(\.colorScheme) private var colorScheme
+    private var isDark: Bool { colorScheme == .dark }
 }
 
 /// Einstellungen → „Schreibtisch-Widget“
@@ -206,6 +220,11 @@ struct DesktopWidgetSection: View {
                 ForEach(TileSize.allCases) { Text($0.label).tag($0) }
             }
             .disabled(!controller.isEnabled)
+            Picker("Darstellung", selection: $controller.appearance) {
+                ForEach(TileAppearance.allCases) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .disabled(!controller.isEnabled)
             Toggle("Beim Anmelden automatisch starten", isOn: Binding(
                 get: { controller.launchAtLogin },
                 set: { controller.setLaunchAtLogin($0) }
@@ -219,5 +238,74 @@ struct DesktopWidgetSection: View {
         } footer: {
             Text("Beim automatischen Start nach der Anmeldung erscheint nur die Kachel – ohne Fenster und Dock-Symbol. Schließt du das Fenster, läuft Business Miles unsichtbar weiter. Klick auf die Kachel öffnet die App, Rechtsklick → „Business Miles beenden“ beendet sie ganz. Die Kachel lässt sich mit der Maus verschieben.")
         }
+    }
+}
+
+/// Darstellung der Schreibtisch-Kachel (unabhängig von der App)
+enum TileAppearance: String, CaseIterable, Identifiable {
+    case light, dark, system
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .light: "Hell"
+        case .dark: "Dunkel"
+        case .system: "Wie System"
+        }
+    }
+    var nsAppearance: NSAppearance? {
+        switch self {
+        case .light: NSAppearance(named: .aqua)
+        case .dark: NSAppearance(named: .darkAqua)
+        case .system: nil
+        }
+    }
+    /// Dunkelgrau für den Hintergrund im Dunkelmodus (#2C2F33)
+    static let darkBackground = Color(red: 0.173, green: 0.184, blue: 0.200)
+}
+
+/// Autostart über einen eigenen LaunchAgent (~/Library/LaunchAgents) – zuverlässiger als
+/// Anmeldeobjekte für Apps ohne Apple-Entwicklerkonto und unabhängig von Updates.
+/// Übergibt „--login“, damit die App nur mit der Kachel (ohne Fenster) startet.
+@MainActor
+enum LoginLauncher {
+    static let label = "app.businessmiles.autostart"
+
+    static var plistURL: URL {
+        AppConfig.realHomeDirectory.appendingPathComponent("Library/LaunchAgents/\(label).plist")
+    }
+
+    static var isEnabled: Bool { FileManager.default.fileExists(atPath: plistURL.path) }
+
+    static func enable() throws {
+        let dict: [String: Any] = [
+            "Label": label,
+            "ProgramArguments": ["/usr/bin/open", "-a", Bundle.main.bundlePath, "--args", "--login"],
+            "RunAtLoad": true,
+            "LimitLoadToSessionType": "Aqua",
+        ]
+        try FileManager.default.createDirectory(at: plistURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let data = try PropertyListSerialization.data(fromPropertyList: dict, format: .xml, options: 0)
+        try data.write(to: plistURL, options: .atomic)
+        // Alte Anmeldeobjekt-Registrierung entfernen (sonst doppelter Start)
+        if SMAppService.mainApp.status == .enabled { try? SMAppService.mainApp.unregister() }
+    }
+
+    static func disable() {
+        try? FileManager.default.removeItem(at: plistURL)
+        if SMAppService.mainApp.status == .enabled { try? SMAppService.mainApp.unregister() }
+    }
+
+    /// Beim Start: auf neuen Weg umstellen (früher SMAppService) und Pfad aktuell halten.
+    static func refresh() {
+        if SMAppService.mainApp.status == .enabled, !isEnabled {
+            try? enable()   // war per Anmeldeobjekt aktiv → umziehen
+            return
+        }
+        guard isEnabled,
+              let data = try? Data(contentsOf: plistURL),
+              let dict = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
+              let args = dict["ProgramArguments"] as? [String]
+        else { return }
+        if !args.contains(Bundle.main.bundlePath) { try? enable() }
     }
 }

@@ -5,6 +5,7 @@ import CoreServices
 /// Steuert app-weite Aktionen (Menübefehl, Widget-Link).
 @MainActor
 final class AppRouter: ObservableObject {
+    static let shared = AppRouter()
     @Published var newTripRequested = false
     /// Öffnet das Programmfenster (wird vom Fenster selbst gesetzt, funktioniert auch nachdem es geschlossen wurde)
     var openMainWindow: (() -> Void)?
@@ -31,6 +32,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillFinishLaunching(_ notification: Notification) {
+        // Start über den eigenen Autostart (LaunchAgent) übergibt „--login“
+        if CommandLine.arguments.contains("--login") { Self.launchedAsLoginItem = true }
         if let event = NSAppleEventManager.shared().currentAppleEvent,
            event.eventID == AEEventID(kAEOpenApplication),
            event.paramDescriptor(forKeyword: AEKeyword(keyAEPropData))?.enumCodeValue == OSType(keyAELaunchedAsLogInItem) {
@@ -39,6 +42,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if !ScreenshotMode.isActive {
+            // Kachel sofort starten – unabhängig davon, ob ein Programmfenster erscheint
+            DesktopWidgetController.shared.start(store: .shared, router: .shared)
+            LoginLauncher.refresh()
+            if Self.startHidden {
+                NSApp.setActivationPolicy(.accessory)
+                // Falls SwiftUI trotzdem ein Fenster öffnet: wieder schließen
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    MainActor.assumeIsolated {
+                        for w in NSApp.windows where w.isVisible && !(w is NSPanel) && w.canBecomeMain { w.close() }
+                        Self.updateDockIcon()
+                    }
+                }
+            }
+        }
         NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: nil, queue: .main) { _ in
             // Kurz warten, bis das Fenster wirklich weg ist
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
@@ -61,10 +79,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 @main
 struct BusinessMilesApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @StateObject private var store = ScreenshotMode.isActive
-        ? TripStore(preview: ScreenshotMode.sampleData())
-        : TripStore()
-    @StateObject private var router = AppRouter()
+    @StateObject private var store = TripStore.shared
+    @StateObject private var router = AppRouter.shared
     @State private var showSplash = true
 
     var body: some Scene {

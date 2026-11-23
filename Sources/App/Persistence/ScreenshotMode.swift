@@ -49,6 +49,8 @@ enum ScreenshotMode {
         let snapshot = WidgetSync.snapshot(for: store.trips)
         renderWidget(snapshot, family: .small, size: CGSize(width: 170, height: 170), to: dir.appendingPathComponent("widget-klein.png"))
         renderWidget(snapshot, family: .medium, size: CGSize(width: 364, height: 170), to: dir.appendingPathComponent("widget-mittel.png"))
+        renderWidget(snapshot, family: .medium, size: CGSize(width: 364, height: 170), dark: true, to: dir.appendingPathComponent("widget-mittel-dunkel.png"))
+        renderWidget(snapshot, family: .small, size: CGSize(width: 170, height: 170), dark: true, to: dir.appendingPathComponent("widget-klein-dunkel.png"))
 
         // Exporte
         let years = TripStatistics.years(from: store.trips)
@@ -86,11 +88,11 @@ enum ScreenshotMode {
     }
 
     @MainActor
-    private static func renderWidget(_ snapshot: WidgetSnapshot, family: TileSize, size: CGSize, to url: URL) {
-        let content = MilesWidgetContent(entry: MilesEntry(date: .now, snapshot: snapshot), family: family)
+    private static func renderWidget(_ snapshot: WidgetSnapshot, family: TileSize, size: CGSize, dark: Bool = false, to url: URL) {
+        let content = MilesWidgetContent(entry: MilesEntry(date: .now, snapshot: snapshot), family: family, dark: dark)
             .padding(16)
             .frame(width: size.width, height: size.height)
-            .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color.white))
+            .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(dark ? TileAppearance.darkBackground : Color.white))
             .padding(24)
             .background(Color(red: 0.86, green: 0.89, blue: 0.93))
         let renderer = ImageRenderer(content: content)

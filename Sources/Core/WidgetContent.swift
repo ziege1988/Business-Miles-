@@ -19,11 +19,15 @@ struct MilesWidgetContent: View {
     let family: TileSize
     /// Aktion für den Knopf „Neue Fahrt“ (nil = Knopf nur anzeigen, z. B. im Vorschaubild)
     var onNewTrip: (() -> Void)? = nil
+    /// Dunkle Darstellung (dunkelgrauer Hintergrund, helle Schrift)
+    var dark: Bool = false
 
     private let fullColor = true
-    private var ink: Color { Theme.ink }
-    private var muted: Color { Theme.secondaryText }
-    private var accentText: Color { Theme.accentDeep }
+    private var ink: Color { dark ? Color(white: 0.95) : Theme.ink }
+    private var muted: Color { dark ? Color(white: 0.68) : Theme.secondaryText }
+    private var accentText: Color { dark ? Color(red: 0.42, green: 0.80, blue: 0.81) : Theme.accentDeep }
+    private var chipBackground: Color { dark ? Color.white.opacity(0.10) : Theme.accentSoft }
+    private var boxBackground: Color { dark ? Color.white.opacity(0.07) : Theme.background }
 
     private var newTripLabel: some View {
         Label("Neue Fahrt", systemImage: "plus")
@@ -81,7 +85,7 @@ struct MilesWidgetContent: View {
             .foregroundStyle(accentText)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(Capsule().fill(fullColor ? Theme.accentSoft : Color.primary.opacity(0.12)))
+            .background(Capsule().fill(chipBackground))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -94,7 +98,8 @@ struct MilesWidgetContent: View {
                 HStack(spacing: 7) {
                     LogoMark(size: 20)
                     if fullColor {
-                        Wordmark(size: 13)
+                        (Text("Business ").foregroundColor(ink) + Text("Miles").foregroundColor(Theme.accent))
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
                     } else {
                         Text("Business Miles").font(.system(size: 13, weight: .semibold, design: .rounded))
                     }
@@ -137,7 +142,7 @@ struct MilesWidgetContent: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(10)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(fullColor ? Theme.background : Color.primary.opacity(0.08)))
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(boxBackground))
 
                 if let onNewTrip {
                     Button(action: onNewTrip) { newTripLabel }
